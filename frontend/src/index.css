@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    @apply min-h-screen bg-gradient-to-b from-white/95 to-slate-200/80 text-slate-800 antialiased font-sans;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-slate-900 font-semibold tracking-tight;
+  }
+}
