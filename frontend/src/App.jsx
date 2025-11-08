@@ -36,133 +36,21 @@ const models = [
   }
 ];
 
-const styles = {
-  page: {
-    fontFamily: '"Inter", system-ui, sans-serif',
-    background: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
-    color: '#e5e7eb',
-    minHeight: '100vh',
-    margin: 0,
-    padding: '2.5rem 1.5rem'
-  },
-  appContainer: {
-    maxWidth: '1100px',
-    margin: '0 auto',
-    display: 'grid',
-    gap: '2rem'
-  },
-  header: {
-    textAlign: 'center'
-  },
-  headline: {
-    fontSize: '2.5rem',
-    marginBottom: '0.5rem',
-    color: '#f8fafc'
-  },
-  subheadline: {
-    color: '#94a3b8',
-    fontSize: '1.05rem'
-  },
-  tabs: {
-    display: 'flex',
-    gap: '0.75rem',
-    flexWrap: 'wrap',
-    justifyContent: 'center'
-  },
-  tabButton: (isActive) => ({
-    border: '1px solid',
-    borderColor: isActive ? '#38bdf8' : '#1f2937',
-    background: isActive
-      ? 'linear-gradient(135deg, rgba(56,189,248,0.2), rgba(14,165,233,0.35))'
-      : 'rgba(15, 23, 42, 0.75)',
-    color: '#f8fafc',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    fontSize: '0.95rem',
-    transition: 'all 0.2s ease-in-out'
-  }),
-  contentGrid: {
-    display: 'grid',
-    gap: '1.5rem',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))'
-  },
-  panel: {
-    background: 'rgba(15, 23, 42, 0.6)',
-    border: '1px solid rgba(148, 163, 184, 0.15)',
-    borderRadius: '1.25rem',
-    padding: '1.75rem',
-    boxShadow: '0 16px 48px rgba(15, 23, 42, 0.45)'
-  },
-  panelHeading: {
-    fontSize: '1.35rem',
-    fontWeight: 600,
-    marginBottom: '1rem',
-    color: '#e0f2fe'
-  },
-  description: {
-    lineHeight: 1.6,
-    color: '#cbd5f5',
-    marginBottom: '1.5rem'
-  },
-  sampleList: {
-    listStyle: 'disc',
-    paddingLeft: '1.25rem',
-    color: '#e5e7eb',
-    lineHeight: 1.5
-  },
-  chatHistory: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxHeight: '340px',
-    overflowY: 'auto',
-    paddingRight: '0.25rem'
-  },
-  message: (role) => ({
-    alignSelf: role === 'user' ? 'flex-end' : 'flex-start',
-    background:
-      role === 'user'
-        ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.55))'
-        : 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.55))',
-    padding: '0.9rem 1.1rem',
-    borderRadius: '1rem',
-    color: '#f8fafc',
-    maxWidth: '85%',
-    boxShadow: '0 8px 28px rgba(15, 23, 42, 0.35)'
-  }),
-  chatForm: {
-    marginTop: '1.75rem',
-    display: 'flex',
-    gap: '0.75rem',
-    flexWrap: 'wrap'
-  },
-  input: {
-    flex: 1,
-    minWidth: '220px',
-    padding: '0.85rem 1rem',
-    borderRadius: '0.9rem',
-    border: '1px solid rgba(148, 163, 184, 0.3)',
-    background: 'rgba(15, 23, 42, 0.85)',
-    color: '#f8fafc',
-    fontSize: '0.95rem'
-  },
-  submitButton: {
-    padding: '0.85rem 1.5rem',
-    borderRadius: '0.9rem',
-    border: 'none',
-    background: 'linear-gradient(135deg, #38bdf8, #2563eb)',
-    color: '#0f172a',
-    fontWeight: 600,
-    cursor: 'pointer',
-    boxShadow: '0 8px 20px rgba(37, 99, 235, 0.35)'
-  },
-  emptyState: {
-    textAlign: 'center',
-    color: '#94a3b8',
-    fontSize: '0.95rem'
-  }
-};
+const tabButtonClasses = (isActive) =>
+  [
+    'rounded-2xl border px-5 py-3 text-left text-base font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-300/60',
+    isActive
+      ? 'border-sky-300 bg-gradient-to-br from-sky-400/35 to-sky-500/60 text-slate-900 shadow-buttonActive'
+      : 'border-slate-300/60 bg-white/75 text-slate-900 shadow-button hover:border-slate-300/70 hover:bg-white'
+  ].join(' ');
+
+const messageClasses = (role) =>
+  [
+    'max-w-[85%] rounded-2xl px-4 py-3 text-sm text-slate-900 shadow-chat',
+    role === 'user'
+      ? 'self-end bg-gradient-to-br from-blue-500/25 to-blue-600/45'
+      : 'self-start bg-gradient-to-br from-emerald-500/25 to-emerald-600/45'
+  ].join(' ');
 
 function App() {
   const [activeModelId, setActiveModelId] = useState(models[0].id);
@@ -202,76 +90,97 @@ function App() {
   };
 
   return (
-    <main style={styles.page}>
-      <div style={styles.appContainer}>
-        <header style={styles.header}>
-          <h1 style={styles.headline}>Anatomy Model Explorer</h1>
-          <p style={styles.subheadline}>
-            Switch between anatomical models and ask questions through each model&apos;s dedicated
-            assistant.
+    <main className="px-6 pb-12 pt-8 font-sans md:px-8">
+      <div className="mx-auto grid max-w-5xl gap-8">
+        <nav className="sticky top-4 z-20 flex items-center justify-between rounded-2xl border border-slate-300/20 bg-white/90 px-6 py-4 shadow-float backdrop-blur-xl">
+          <div className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-slate-900">
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-400/20 to-blue-500/50 text-xl text-slate-900 shadow-badge">
+              🩻
+            </span>
+            <span>Anatomy View</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+            <span className="cursor-pointer transition hover:text-slate-500">Guides</span>
+            <span className="cursor-pointer transition hover:text-slate-500">Resources</span>
+            <button
+              type="button"
+              className="rounded-xl border border-slate-300/20 bg-white/75 px-4 py-2 text-sm font-medium text-slate-900 shadow-button transition hover:border-slate-300/40 hover:bg-white focus:outline-none focus:ring-2 focus:ring-sky-300/60"
+            >
+              Contact
+            </button>
+          </div>
+        </nav>
+
+        <header className="mt-4 text-center">
+          <h1 className="text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">Anatomy Model Explorer</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-base font-normal text-slate-600 md:text-lg">
+            Switch between anatomical models and ask questions through each model&apos;s dedicated assistant.
           </p>
         </header>
 
-        <nav style={styles.tabs}>
-          {models.map((model) => (
-            <button
-              key={model.id}
-              type="button"
-              onClick={() => setActiveModelId(model.id)}
-              style={styles.tabButton(model.id === activeModelId)}
-            >
-              {model.name}
-            </button>
-          ))}
-        </nav>
-
-        <div style={styles.contentGrid}>
-          <section style={styles.panel}>
-            <h2 style={styles.panelHeading}>{activeModel.name}</h2>
-            <p style={styles.description}>{activeModel.description}</p>
-
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '0.75rem', color: '#bae6fd' }}>
-              Try asking:
-            </h3>
-            <ul style={styles.sampleList}>
-              {activeModel.sampleQuestions.map((question) => (
-                <li key={question}>{question}</li>
-              ))}
-            </ul>
-          </section>
-
-          <section style={styles.panel}>
-            <h2 style={styles.panelHeading}>{activeModel.name} Assistant</h2>
-            <div style={styles.chatHistory}>
-              {activeChatHistory.length === 0 ? (
-                <div style={styles.emptyState}>
-                  Start the conversation by asking a question about the {activeModel.name.toLowerCase()}.
-                </div>
-              ) : (
-                activeChatHistory.map((message, index) => (
-                  <div key={`${message.role}-${index}`} style={styles.message(message.role)}>
-                    <strong style={{ display: 'block', marginBottom: '0.35rem', fontSize: '0.8rem' }}>
-                      {message.role === 'user' ? 'You' : 'Assistant'}
-                    </strong>
-                    <span>{message.text}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <form style={styles.chatForm} onSubmit={handleSubmit}>
-              <input
-                style={styles.input}
-                type="text"
-                value={pendingQuestion}
-                onChange={(event) => setPendingQuestion(event.target.value)}
-                placeholder={`Ask the ${activeModel.name.toLowerCase()} assistant...`}
-              />
-              <button style={styles.submitButton} type="submit">
-                Ask
+        <div className="grid gap-6 lg:grid-cols-[minmax(220px,280px)_1fr] lg:items-start">
+          <aside className="sticky top-24 z-10 flex flex-col gap-2.5 self-start rounded-2xl border border-slate-300/20 bg-white/90 p-5 shadow-panel backdrop-blur-xl">
+            {models.map((model) => (
+              <button
+                key={model.id}
+                type="button"
+                onClick={() => setActiveModelId(model.id)}
+                className={tabButtonClasses(model.id === activeModelId)}
+              >
+                {model.name}
               </button>
-            </form>
-          </section>
+            ))}
+          </aside>
+
+          <div className="grid gap-6">
+            <section className="rounded-2xl border border-slate-300/25 bg-white/80 p-7 shadow-panel backdrop-blur-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-900">{activeModel.name}</h2>
+              <p className="mb-6 leading-relaxed text-slate-600">{activeModel.description}</p>
+
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-sky-500">Try asking:</h3>
+              <ul className="list-disc space-y-2 pl-5 text-slate-700">
+                {activeModel.sampleQuestions.map((question) => (
+                  <li key={question}>{question}</li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="rounded-2xl border border-slate-300/25 bg-white/80 p-7 shadow-panel backdrop-blur-lg">
+              <h2 className="mb-4 text-xl font-semibold text-slate-900">{activeModel.name} Assistant</h2>
+              <div className="flex max-h-[340px] flex-col gap-4 overflow-y-auto pr-1">
+                {activeChatHistory.length === 0 ? (
+                  <div className="text-center text-sm text-slate-500">
+                    Start the conversation by asking a question about the {activeModel.name.toLowerCase()}.
+                  </div>
+                ) : (
+                  activeChatHistory.map((message, index) => (
+                    <div key={`${message.role}-${index}`} className={messageClasses(message.role)}>
+                      <strong className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-900">
+                        {message.role === 'user' ? 'You' : 'Assistant'}
+                      </strong>
+                      <span>{message.text}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form className="mt-7 flex flex-wrap items-center gap-3" onSubmit={handleSubmit}>
+                <input
+                  className="min-w-[220px] flex-1 rounded-xl border border-slate-300/30 bg-white/90 px-4 py-3 text-sm text-slate-900 shadow-inner focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-300/40"
+                  type="text"
+                  value={pendingQuestion}
+                  onChange={(event) => setPendingQuestion(event.target.value)}
+                  placeholder={`Ask the ${activeModel.name.toLowerCase()} assistant...`}
+                />
+                <button
+                  className="rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-slate-50 shadow-submit transition hover:from-sky-500 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-sky-300/70"
+                  type="submit"
+                >
+                  Ask
+                </button>
+              </form>
+            </section>
+          </div>
         </div>
       </div>
     </main>
