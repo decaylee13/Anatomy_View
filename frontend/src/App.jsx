@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Environment, Html, OrbitControls, useFBX } from '@react-three/drei';
-import { Box3, MathUtils, Vector3 } from 'three';
+import { Box3, MathUtils, SRGBColorSpace, Vector3 } from 'three';
 import { HEART_REGIONS, resolveHeartRegionName } from './heartRegions';
 
 const initialPrompts = [
@@ -13,7 +13,7 @@ const initialPrompts = [
 const initialControllerState = {
   view: { azimuth: 15, elevation: 20, distance: 3.2 },
   highlightRegion: null,
-  autoRotate: true,
+  autoRotate: false,
   annotation: null
 };
 
@@ -84,13 +84,20 @@ function RegionHighlight({ regionKey, detail }) {
 }
 
 function HeartModel({ highlightRegion, autoRotate }) {
-  const heart = useFBX('/segmented-adult-heart/source/human-heart-3d-animated.fbx');
+  const heart = useFBX(
+    '/segmented-adult-heart/source/human-heart-3d-animated.fbx',
+    (loader) => {
+      loader.setPath('/segmented-adult-heart/source/');
+      loader.setResourcePath('/segmented-adult-heart/textures/');
+      loader.setCrossOrigin('anonymous');
+    }
+  );
   const groupRef = useRef();
 
   useEffect(() => {
     if (!heart) return;
 
-    heart.rotation.set(-Math.PI / 2, Math.PI, 0);
+    heart.rotation.set(-Math.PI / 2, Math.PI / 2, Math.PI);
 
     const boundingBox = new Box3().setFromObject(heart);
     const size = new Vector3();
@@ -109,13 +116,24 @@ function HeartModel({ highlightRegion, autoRotate }) {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+          if (!material) return;
+          ['map', 'emissiveMap'].forEach((mapKey) => {
+            const texture = material[mapKey];
+            if (texture && 'colorSpace' in texture) {
+              texture.colorSpace = SRGBColorSpace;
+            }
+          });
+          material.needsUpdate = true;
+        });
       }
     });
   }, [heart]);
 
   useFrame((_, delta) => {
     if (autoRotate && groupRef.current) {
-      groupRef.current.rotation.z += delta * 0.25;
+      groupRef.current.rotation.y += delta * 0.25;
     }
   });
 
