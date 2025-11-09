@@ -17,7 +17,7 @@ const initialPrompts = [
 ];
 
 const initialControllerState = {
-  view: { azimuth: 25, elevation: 15, distance: 4 },
+  view: { azimuth: 25, elevation: 15, distance: 5 },
   annotation: null,
   highlightRegion: null
 };
@@ -80,15 +80,20 @@ function SkeletonPart({ fileName, highlightColor }) {
         // Store original colors
         if (!originalColorsRef.current.has(child.uuid)) {
           originalColorsRef.current.set(child.uuid, {
-            color: material.color ? material.color.clone() : new Color(0xcccccc),
+            color: material.color ? material.color.clone() : new Color(0xe8dcc8),
             emissive: material.emissive ? material.emissive.clone() : new Color(0x000000)
           });
         }
 
-        // Set default bone color if not already set
+        // Set bone-like color and properties for better depth
         if (!material.color) {
-          material.color = new Color(0xcccccc);
+          material.color = new Color(0xe8dcc8); // Warm bone color
         }
+        
+        // Add material properties for better depth perception
+        material.roughness = 0.7; // Less shiny, more natural
+        material.metalness = 0.1; // Slight metallic sheen
+        material.envMapIntensity = 0.5; // Moderate environment reflection
 
         ['map', 'emissiveMap'].forEach((mapKey) => {
           const texture = material[mapKey];
@@ -133,9 +138,21 @@ function SkeletonPart({ fileName, highlightColor }) {
 
 function SkeletonModel({ highlightRegion }) {
   const skeletonGroup = useRef();
+  const [modelLoaded, setModelLoaded] = useState(false);
+
+  // Trigger recalculation when all parts are loaded
+  useEffect(() => {
+    if (skeletonGroup.current && !modelLoaded) {
+      // Small delay to ensure all OBJ parts are fully loaded
+      const timer = setTimeout(() => {
+        setModelLoaded(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [modelLoaded]);
 
   const { scale, position } = useMemo(() => {
-    if (!skeletonGroup.current) {
+    if (!skeletonGroup.current || !modelLoaded) {
       return { scale: 1, position: new Vector3(0, 0, 0) };
     }
 
@@ -151,7 +168,7 @@ function SkeletonModel({ highlightRegion }) {
     center.multiplyScalar(-computedScale);
 
     return { scale: computedScale, position: center };
-  }, [skeletonGroup.current]);
+  }, [modelLoaded]);
 
   return (
     <group ref={skeletonGroup} scale={scale} position={[position.x, position.y, position.z]}>
@@ -451,22 +468,41 @@ function SkeletonExperience() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950">
       <div className="relative flex flex-1 items-stretch">
-        <Canvas shadows camera={{ position: [2.8, 1.8, 4.2], fov: 45 }}>
+        <Canvas shadows camera={{ position: [4, 2, 5], fov: 45 }}>
           <color attach="background" args={[0.02, 0.03, 0.05]} />
-          <ambientLight intensity={0.5} />
+          <ambientLight intensity={0.4} />
+          <directionalLight
+            castShadow
+            position={[5, 8, 5]}
+            intensity={1.2}
+            shadow-mapSize={2048}
+          />
+          <directionalLight
+            position={[-5, 5, -5]}
+            intensity={0.6}
+          />
           <spotLight
             castShadow
-            position={[6, 10, 6]}
-            angle={0.35}
-            penumbra={0.4}
-            intensity={1.6}
+            position={[0, 10, 0]}
+            angle={0.5}
+            penumbra={0.5}
+            intensity={0.8}
             shadow-mapSize={1024}
           />
           <Suspense fallback={<CanvasLoader label="Loading skeleton model…" />}>
             <SkeletonModel highlightRegion={controllerState.highlightRegion} />
             <Environment preset="sunset" />
           </Suspense>
-          <OrbitControls ref={controlsRef} enablePan={false} maxDistance={7} minDistance={2.2} target={[0, 0.4, 0]} />
+          <OrbitControls 
+            ref={controlsRef} 
+            enablePan={false} 
+            enableDamping
+            dampingFactor={0.05}
+            maxDistance={10} 
+            minDistance={1.5} 
+            target={[0, 0.4, 0]}
+            zoomSpeed={1.2}
+          />
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
 

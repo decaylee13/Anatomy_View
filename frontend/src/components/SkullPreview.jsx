@@ -41,12 +41,16 @@ function SkullModel() {
         model.traverse((child) => {
             if (!child.isMesh || !child.material) return;
 
+            child.castShadow = true;
+            child.receiveShadow = true;
+
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach((material) => {
                 if (!material) return;
-                material.color = new Color('#f4f4f5');
-                if ('roughness' in material) material.roughness = 0.6;
-                if ('metalness' in material) material.metalness = 0.05;
+                material.color = new Color('#e8dcc8'); // Warm bone color
+                if ('roughness' in material) material.roughness = 0.7; // More natural, less shiny
+                if ('metalness' in material) material.metalness = 0.1; // Slight metallic sheen
+                if ('envMapIntensity' in material) material.envMapIntensity = 0.5; // Moderate environment reflection
             });
         });
     }, [scene]);
@@ -62,14 +66,29 @@ function SkullModel() {
 
 function SkullPreviewCanvas() {
     return (
-        <Canvas camera={{ position: [1.9, 1.2, 1.9], fov: 40 }} className="rounded-3xl">
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[2.2, 4.4, 3]} intensity={1.9} color="#f8fafc" />
-            <directionalLight position={[-3.5, 2.6, -2.4]} intensity={1.2} color="#d7e0ff" />
-            <directionalLight position={[0, -2.8, 1.5]} intensity={0.5} color="#9db1ff" />
+        <Canvas shadows camera={{ position: [1.9, 1.2, 1.9], fov: 40 }} className="rounded-3xl">
+            <ambientLight intensity={0.4} />
+            <directionalLight 
+                castShadow
+                position={[5, 8, 5]} 
+                intensity={1.2} 
+                shadow-mapSize={2048}
+            />
+            <directionalLight 
+                position={[-5, 5, -5]} 
+                intensity={0.6}
+            />
+            <spotLight
+                castShadow
+                position={[0, 10, 0]}
+                angle={0.5}
+                penumbra={0.5}
+                intensity={0.8}
+                shadow-mapSize={1024}
+            />
             <Suspense fallback={<CanvasLoader label="Loading skull" />}>
                 <SkullModel />
-                <Environment preset="city" />
+                <Environment preset="sunset" />
             </Suspense>
             <OrbitControls enablePan={false} maxDistance={3} minDistance={1.1} />
         </Canvas>
