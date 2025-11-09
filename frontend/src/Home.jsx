@@ -4,7 +4,7 @@ import SkullPreview from './components/SkullPreview.jsx';
 
 const chapters = [
   {
-    name: 'Cardiac Chapter',
+    name: 'Cardiac Model',
     description: 'Chat with Medverse to explore valves, chambers, and coronary flow in guided heart sessions.',
     href: '/heart',
     accent: 'from-rose-400/80 via-rose-300/60 to-rose-400/30',
@@ -12,7 +12,7 @@ const chapters = [
     slug: 'heart'
   },
   {
-    name: 'Neuro Chapter',
+    name: 'Brain Model',
     description: 'Chat with Medverse to unpack cortical regions, deep nuclei, and vascular pathways of the brain.',
     href: '/brain',
     accent: 'from-indigo-400/80 via-indigo-300/60 to-indigo-400/30',
@@ -20,7 +20,7 @@ const chapters = [
     slug: 'brain'
   },
   {
-    name: 'Skeletal Chapter',
+    name: 'Skeletal Model',
     description: 'Chat with Medverse to learn key skeletal regions and landmark relationships across the body.',
     href: '/skeleton',
     accent: 'from-amber-400/80 via-amber-300/60 to-amber-400/30',
