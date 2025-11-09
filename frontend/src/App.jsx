@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, Environment, Html, OrbitControls, useFBX } from '@react-three/drei';
+import { Box3, Vector3 } from 'three';
 
 const initialPrompts = [
   'How does blood flow through the chambers of the heart?',
@@ -14,8 +15,20 @@ function HeartModel() {
   useEffect(() => {
     if (!heart) return;
 
-    heart.scale.setScalar(0.01);
     heart.rotation.set(-Math.PI / 2, Math.PI, 0);
+
+    const boundingBox = new Box3().setFromObject(heart);
+    const size = new Vector3();
+    boundingBox.getSize(size);
+
+    const desiredHeight = 2.8;
+    const scale = size.y > 0 ? desiredHeight / size.y : 1;
+    heart.scale.setScalar(scale);
+
+    const scaledBox = new Box3().setFromObject(heart);
+    const scaledCenter = new Vector3();
+    scaledBox.getCenter(scaledCenter);
+    heart.position.set(-scaledCenter.x, -scaledCenter.y, -scaledCenter.z);
     heart.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -30,7 +43,7 @@ function HeartModel() {
     }
   });
 
-  return <primitive object={heart} position={[0, -0.2, 0]} />;
+  return <primitive object={heart} position={[0, -0.35, 0]} />;
 }
 
 function CanvasLoader() {
@@ -74,6 +87,13 @@ function ChatSidebar({ isOpen, onClose, messages, onSubmit }) {
           <h2 className="text-lg font-semibold">Heart Assistant</h2>
           <p className="text-xs text-white/60">Ask questions about the anatomy you are viewing.</p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/70 transition hover:bg-white/20"
+        >
+          Hide
+        </button>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
