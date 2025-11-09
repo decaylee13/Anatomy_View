@@ -1,0 +1,8 @@
+# File created by ZBrush
+# ToolType: PolyMesh3D
+# www.zbrush.com
+newmtl defaultMat
+map_Kd SubTool-0-12960644.jpg
+
+map_normal SubTool-0-12960644-NMap.jpg
+map_occlusion SubTool-0-12960644-AO.jpg
