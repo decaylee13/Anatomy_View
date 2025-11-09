@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 
-function MedverseIntro() {
+function MedverseIntro({ closing = false }) {
     const letters = useMemo(() => ['M', 'E', 'D', 'V', 'E', 'R', 'S', 'E'], []);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-950">
+        <div
+            className={`medverse-intro fixed inset-0 z-50 flex items-center justify-center bg-slate-800 ${closing ? 'medverse-intro--fade' : ''}`}
+        >
             <div className="flex flex-col items-center gap-6">
                 <div className="flex gap-1 text-4xl font-semibold tracking-[0.28em] text-slate-100 sm:text-5xl">
                     {letters.map((letter, index) => (

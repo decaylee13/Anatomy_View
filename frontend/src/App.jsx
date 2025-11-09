@@ -11,31 +11,45 @@ import MedverseNavbar from './components/MedverseNavbar.jsx';
 function App() {
   const location = useLocation();
   const [showIntro, setShowIntro] = useState(() => location.pathname === '/');
+  const [introClosing, setIntroClosing] = useState(false);
 
   useEffect(() => {
     if (location.pathname !== '/') {
       setShowIntro(false);
+      setIntroClosing(false);
       return undefined;
     }
 
     setShowIntro(true);
+    setIntroClosing(false);
 
     if (typeof window === 'undefined') {
       return undefined;
     }
 
-    const timer = window.setTimeout(() => {
-      setShowIntro(false);
-    }, 2200);
+    const introDuration = 2200;
+    const fadeDuration = 450;
 
-    return () => window.clearTimeout(timer);
+    const fadeTimer = window.setTimeout(() => {
+      setIntroClosing(true);
+    }, introDuration);
+
+    const hideTimer = window.setTimeout(() => {
+      setShowIntro(false);
+      setIntroClosing(false);
+    }, introDuration + fadeDuration);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
+    };
   }, [location.pathname]);
 
   const showNavbar = location.pathname === '/';
 
   return (
     <>
-      {showIntro && <MedverseIntro />}
+      {showIntro && <MedverseIntro closing={introClosing} />}
       {showNavbar && <MedverseNavbar />}
       <Routes>
         <Route path="/" element={<Home />} />

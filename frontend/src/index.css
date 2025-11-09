@@ -45,6 +45,27 @@
   animation: medverse-bar 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+.medverse-intro {
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+.medverse-intro--fade {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(1.5rem);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @keyframes medverse-letter {
   0% {
     opacity: 0;
