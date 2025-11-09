@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 function ChatSidebar({
   messages,
@@ -12,6 +12,25 @@ function ChatSidebar({
   annotation = null
 }) {
   const [pendingMessage, setPendingMessage] = useState('');
+  const lastUserMessageIndex = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'user') {
+        return index;
+      }
+    }
+    return -1;
+  }, [messages]);
+  const annotationTargetIndex = useMemo(() => {
+    if (!annotation || lastUserMessageIndex === -1) {
+      return -1;
+    }
+    for (let index = lastUserMessageIndex + 1; index < messages.length; index += 1) {
+      if (messages[index]?.role === 'assistant') {
+        return index;
+      }
+    }
+    return -1;
+  }, [annotation, lastUserMessageIndex, messages]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -67,14 +86,6 @@ function ChatSidebar({
           </div>
         ) : null}
 
-        {annotation ? (
-          <div className="space-y-2 rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white/80 shadow-inner">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">Scene annotation</p>
-            <h3 className="text-base font-semibold text-white">{annotation.title}</h3>
-            <p className="text-sm leading-relaxed text-white/70">{annotation.description}</p>
-          </div>
-        ) : null}
-
         {messages.length === 0 ? (
           <div className="space-y-3 text-sm text-white/70">
             <p>Start the conversation by trying one of these prompts:</p>
@@ -93,42 +104,54 @@ function ChatSidebar({
             </ul>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${message.role === 'user' ? 'ml-auto bg-sky-500/30 text-sky-50' : 'mr-auto bg-emerald-500/30 text-emerald-50'
-                }`}
-            >
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                {message.role === 'user' ? 'You' : 'Assistant'}
-              </p>
-              <p className="whitespace-pre-line">{message.text}</p>
-              {message.status === 'loading' ? (
-                <p className="mt-2 text-xs text-white/60">Connecting to Gemini…</p>
-              ) : null}
-              {message.highlightSummaries?.length ? (
-                <div className="mt-3 space-y-2 rounded-xl border border-white/20 bg-white/5 p-3 text-xs text-white/80">
-                  <p className="font-semibold uppercase tracking-wide text-white/60">Highlighted regions</p>
-                  <ul className="space-y-2">
-                    {message.highlightSummaries.map((highlight, highlightIndex) => (
-                      <li key={`${highlight.regionLabel}-${highlightIndex}`} className="flex gap-3">
-                        <span
-                          className="mt-0.5 h-3 w-3 flex-shrink-0 rounded-full border border-white/40"
-                          style={{ backgroundColor: highlight.color }}
-                          aria-hidden="true"
-                        />
-                        <div className="space-y-1">
-                          <p className="font-semibold text-white">{highlight.regionLabel}</p>
-                          {highlight.comment ? <p className="leading-snug text-white/80">{highlight.comment}</p> : null}
-                          <p className="text-[10px] uppercase tracking-wide text-white/60">{highlight.color}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ))
+          messages.map((message, index) => {
+            const isUser = message.role === 'user';
+            const showAnnotationInside =
+              annotation && index === annotationTargetIndex && message.role === 'assistant';
+
+            return (
+              <div
+                key={`${message.role}-${index}`}
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${isUser ? 'ml-auto bg-sky-500/30 text-sky-50' : 'mr-auto bg-emerald-500/30 text-emerald-50'}`}
+              >
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                  {isUser ? 'You' : 'Assistant'}
+                </p>
+                <p className="whitespace-pre-line">{message.text}</p>
+                {message.status === 'loading' ? (
+                  <p className="mt-2 text-xs text-white/60">Connecting to Gemini…</p>
+                ) : null}
+                {message.highlightSummaries?.length ? (
+                  <div className="mt-3 space-y-2 rounded-xl border border-white/20 bg-white/5 p-3 text-xs text-white/80">
+                    <p className="font-semibold uppercase tracking-wide text-white/60">Highlighted regions</p>
+                    <ul className="space-y-2">
+                      {message.highlightSummaries.map((highlight, highlightIndex) => (
+                        <li key={`${highlight.regionLabel}-${highlightIndex}`} className="flex gap-3">
+                          <span
+                            className="mt-0.5 h-3 w-3 flex-shrink-0 rounded-full border border-white/40"
+                            style={{ backgroundColor: highlight.color }}
+                            aria-hidden="true"
+                          />
+                          <div className="space-y-1">
+                            <p className="font-semibold text-white">{highlight.regionLabel}</p>
+                            {highlight.comment ? <p className="leading-snug text-white/80">{highlight.comment}</p> : null}
+                            <p className="text-[10px] uppercase tracking-wide text-white/60">{highlight.color}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {showAnnotationInside ? (
+                  <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-white/10 p-3 text-xs text-white/80">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">Scene annotation</p>
+                    <h3 className="text-sm font-semibold text-white">{annotation.title}</h3>
+                    <p className="text-sm leading-relaxed text-white/70">{annotation.description}</p>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
         )}
       </div>
 
