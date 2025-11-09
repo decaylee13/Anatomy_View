@@ -105,20 +105,6 @@ function ChatSidebar({
                   </ul>
                 </div>
               ) : null}
-              {message.toolResults?.length ? (
-                <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-[11px] text-white/70">
-                  <p className="mb-1 font-semibold uppercase tracking-wide text-white/60">Execution log</p>
-                  <ul className="space-y-1">
-                    {message.toolResults.map((result, resultIndex) => (
-                      <li key={`${result.name}-${resultIndex}`}>
-                        <span className="font-semibold text-white">{result.name}</span>{' '}
-                        <span className="uppercase tracking-wide text-white/60">({result.status})</span>{' '}
-                        {result.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           ))
         )}

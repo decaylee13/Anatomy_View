@@ -22,10 +22,16 @@ GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'models/gemini-1.5-flash-latest')
 GEMINI_API_URL = f'https://generativelanguage.googleapis.com/v1beta/{GEMINI_MODEL}:generateContent'
 
 SYSTEM_PROMPT = """You are the Dedalus Labs anatomy guide coordinating with a Three.js 3D heart.
-Always speak to the learner in plain English, describing what you are changing or
-highlighting. When adjustments to the 3D model are helpful, call a tool so the
-Dedalus Labs renderer can execute it. Never invent tools – only call the ones you
-have been given.
+Always speak to the learner in plain English, providing educational insights and explanations
+about the anatomy they are viewing. When adjustments to the 3D model are helpful, call a tool 
+so the Dedalus Labs renderer can execute it. Never invent tools – only call the ones you have 
+been given.
+
+CRITICAL RESPONSE RULES:
+1. ALWAYS provide a substantive text response with educational content - never respond with only tool calls
+2. When highlighting a region, explain its anatomical significance, function, or relevant details in your text response
+3. Do NOT mention that you're calling tools or making adjustments - just provide the educational content
+4. Only mention tool/system interactions if there's an error or limitation preventing the highlight; just apologize for the inconvenience (do not explain the technical details of what went wrong)
 
 Use the tools to:
 - change the viewer orientation when the learner asks to look from a different angle;
@@ -37,6 +43,12 @@ When you need to adjust the scene, describe the intended outcome rather than the
 name of the tool you are using. Let the tool call itself communicate the action
 to the renderer. If a requested structure is unknown, explain that and suggest
 nearby structures that are available.
+
+For color selection when highlighting:
+- Use distinct, non-anatomical colors like magenta (#ff00ff), cyan (#00ffff), lime (#00ff00), 
+  or purple (#8b5cf6) to make highlights clearly visible
+- Avoid red, orange, yellow, and blue unless the user specifically requests a color
+- If the user specifies a color preference, honor it exactly
 """
 
 TOOLS: List[Dict[str, Any]] = [
@@ -66,7 +78,7 @@ TOOLS: List[Dict[str, Any]] = [
             },
             {
                 'name': 'highlight_heart_region',
-                'description': 'Highlight a major heart structure with a glowing marker.',
+                'description': 'Highlight a major heart structure by changing its color.',
                 'parameters': {
                     'type': 'object',
                     'properties': {
@@ -74,9 +86,13 @@ TOOLS: List[Dict[str, Any]] = [
                             'type': 'string',
                             'description': 'Name of the heart structure to highlight (e.g. "left atrium", "right ventricle").'
                         },
+                        'color': {
+                            'type': 'string',
+                            'description': 'Hex color code for the highlight (e.g. "#ff00ff" for magenta). Use bright, non-anatomical colors like magenta, cyan, lime, or purple unless user specifies otherwise. Avoid red, orange, yellow, and blue.'
+                        },
                         'detail': {
                             'type': 'string',
-                            'description': 'Optional explanation of why the region is highlighted.'
+                            'description': 'Optional brief note about this specific highlight (keep very short, main explanation goes in your primary response text).'
                         }
                     },
                     'required': ['region']
@@ -264,8 +280,17 @@ def chat() -> Any:
 
     reply_text = '\n'.join(fragment.strip() for fragment in reply_text_fragments if fragment.strip())
 
+    # Only provide fallback message if there's truly no text AND no tool calls
+    if not reply_text:
+        if tool_calls:
+            # If tools were called but no text, don't show any message (tools speak for themselves)
+            reply_text = ''
+        else:
+            # If neither text nor tools, something went wrong
+            reply_text = 'I am processing your request.'
+
     return jsonify({
-        'reply': reply_text or 'I am ready to adjust the 3D heart as needed.',
+        'reply': reply_text,
         'toolCalls': tool_calls,
         'raw': {
             'finishReason': top_candidate.get('finishReason'),

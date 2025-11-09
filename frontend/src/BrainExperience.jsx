@@ -292,7 +292,7 @@ function BrainExperience() {
           if (assistantIndex !== -1) {
             updated[assistantIndex] = {
               ...updated[assistantIndex],
-              text: payload.reply || 'Gemini did not provide a reply.',
+              text: payload.reply || '',
               status: 'complete',
               toolCalls,
               toolResults: [],
