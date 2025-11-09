@@ -105,23 +105,6 @@ function ChatSidebar({
                   </ul>
                 </div>
               ) : null}
-              {message.toolCalls?.length ? (
-                <div className="mt-3 space-y-2 rounded-xl border border-white/20 bg-white/10 p-3 text-xs text-white/80">
-                  <p className="font-semibold uppercase tracking-wide text-white/60">Dedalus tool calls</p>
-                  <ul className="space-y-2">
-                    {message.toolCalls.map((tool, toolIndex) => (
-                      <li key={`${tool.name}-${toolIndex}`} className="space-y-1">
-                        <span className="font-semibold text-white">{tool.name}</span>
-                        {tool.arguments ? (
-                          <pre className="whitespace-pre-wrap break-words text-[11px] text-white/80">
-                            {JSON.stringify(tool.arguments, null, 2)}
-                          </pre>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
               {message.toolResults?.length ? (
                 <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-[11px] text-white/70">
                   <p className="mb-1 font-semibold uppercase tracking-wide text-white/60">Execution log</p>

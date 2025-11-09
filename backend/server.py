@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any, Dict, List
@@ -32,9 +33,10 @@ Use the tools to:
 - enable or disable the model's ambient rotation when needed;
 - add short annotations that summarise key facts about the current focus area.
 
-Every response should contain both an explanation to the learner and any required
-tool calls. If a requested structure is unknown, explain that and suggest nearby
-structures that are available.
+When you need to adjust the scene, describe the intended outcome rather than the
+name of the tool you are using. Let the tool call itself communicate the action
+to the renderer. If a requested structure is unknown, explain that and suggest
+nearby structures that are available.
 """
 
 TOOLS: List[Dict[str, Any]] = [
@@ -243,9 +245,21 @@ def chat() -> Any:
             reply_text_fragments.append(part['text'])
         elif 'functionCall' in part:
             function_call = part['functionCall']
+            raw_args = function_call.get('args', {})
+            if isinstance(raw_args, str):
+                try:
+                    parsed_args = json.loads(raw_args) if raw_args.strip() else {}
+                except json.JSONDecodeError:
+                    logger.warning('Failed to parse tool arguments for %s: %s', function_call.get('name'), raw_args)
+                    parsed_args = {}
+            elif isinstance(raw_args, dict):
+                parsed_args = raw_args
+            else:
+                parsed_args = {}
+
             tool_calls.append({
                 'name': function_call.get('name', ''),
-                'arguments': function_call.get('args', {})
+                'arguments': parsed_args
             })
 
     reply_text = '\n'.join(fragment.strip() for fragment in reply_text_fragments if fragment.strip())

@@ -47,6 +47,20 @@ function controllerReducer(state, action) {
   }
 }
 
+function parseToolArguments(args) {
+  if (!args) return {};
+  if (typeof args === 'string') {
+    try {
+      const parsed = JSON.parse(args);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      console.warn('Failed to parse tool arguments:', args, error);
+      return {};
+    }
+  }
+  return args;
+}
+
 function RegionHighlight({ highlight }) {
   if (!highlight?.key) return null;
   const config = HEART_REGIONS[highlight.key];
@@ -86,6 +100,8 @@ function HeartModel({ highlightRegion }) {
 
     // Set rotation to make heart upright and facing forward
     heart.rotation.set(0, 0, 0);
+
+    heart.position.set(0, 0, 0);
 
     const boundingBox = new Box3().setFromObject(heart);
     const size = new Vector3();
@@ -150,7 +166,8 @@ function HeartExperience() {
       const results = [];
 
       toolCalls.forEach((tool) => {
-        const { name, arguments: args = {} } = tool;
+        const { name, arguments: rawArguments = {} } = tool;
+        const args = parseToolArguments(rawArguments);
         switch (name) {
           case 'set_heart_view': {
             const azimuth = Number.isFinite(args.azimuth) ? args.azimuth : null;
