@@ -414,4 +414,10 @@ def chat() -> Any:
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Render requires binding to host 0.0.0.0 and uses PORT env variable (default: 10000)
+    port = int(os.getenv('PORT', 10000))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() in ('true', '1', 't')
+    
+    logger.info(f'Starting Flask server on 0.0.0.0:{port} (debug={debug})')
+    app.run(host='0.0.0.0', port=port, debug=debug)
+
