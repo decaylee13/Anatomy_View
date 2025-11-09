@@ -16,9 +16,8 @@ const initialPrompts = [
 ];
 
 const initialControllerState = {
-  view: { azimuth: 15, elevation: 20, distance: 3.2 },
+  view: { azimuth: 20, elevation: 18, distance: 3.1 },
   highlightRegion: null,
-  autoRotate: false,
   annotation: null
 };
 
@@ -34,12 +33,9 @@ function controllerReducer(state, action) {
           azimuth: action.payload.azimuth ?? state.view.azimuth,
           elevation: action.payload.elevation ?? state.view.elevation,
           distance: nextDistance
-        },
-        autoRotate: false
+        }
       };
     }
-    case 'SET_AUTO_ROTATE':
-      return { ...state, autoRotate: Boolean(action.payload) };
     case 'SET_HIGHLIGHT':
       return { ...state, highlightRegion: action.payload };
     case 'CLEAR_HIGHLIGHT':
@@ -88,19 +84,23 @@ function HeartModel({ highlightRegion }) {
   useEffect(() => {
     if (!heart) return;
 
-    heart.rotation.set(-Math.PI / 2, Math.PI / 2, Math.PI);
+    // Set rotation to make heart upright and facing forward
+    heart.rotation.set(0, 0, 0);
 
     const boundingBox = new Box3().setFromObject(heart);
     const size = new Vector3();
     boundingBox.getSize(size);
 
-    const desiredHeight = 2.8;
+    const desiredHeight = 2.6;
     const scale = size.y > 0 ? desiredHeight / size.y : 1;
     heart.scale.setScalar(scale);
 
+    // Recalculate bounding box after scaling
     const scaledBox = new Box3().setFromObject(heart);
     const scaledCenter = new Vector3();
     scaledBox.getCenter(scaledCenter);
+
+    // Center the heart at world origin (0, 0, 0) - same as brain
     heart.position.set(-scaledCenter.x, -scaledCenter.y, -scaledCenter.z);
 
     heart.traverse((child) => {
@@ -174,9 +174,8 @@ function HeartExperience() {
             results.push({
               name,
               status: 'success',
-              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${
-                distance ? `, distance ${distance.toFixed(2)}` : ''
-              }.`,
+              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${distance ? `, distance ${distance.toFixed(2)}` : ''
+                }.`,
               response: {
                 status: 'success',
                 detail: {
@@ -184,33 +183,6 @@ function HeartExperience() {
                   elevation,
                   ...(distance ? { distance } : {})
                 }
-              }
-            });
-            break;
-          }
-          case 'toggle_auto_rotation': {
-            if (typeof args.enabled !== 'boolean') {
-              results.push({
-                name,
-                status: 'error',
-                message: 'The enabled flag must be provided.',
-                response: {
-                  status: 'error',
-                  detail: 'The enabled flag must be provided.'
-                }
-              });
-              return;
-            }
-            dispatch({ type: 'SET_AUTO_ROTATE', payload: args.enabled });
-            results.push({
-              name,
-              status: 'success',
-              message: args.enabled
-                ? 'Auto-rotation request received, but the heart remains stationary for manual exploration.'
-                : 'Auto-rotation remains disabled.',
-              response: {
-                status: 'success',
-                detail: { enabled: false }
               }
             });
             break;
@@ -238,8 +210,8 @@ function HeartExperience() {
               typeof args.comment === 'string'
                 ? args.comment
                 : typeof args.detail === 'string'
-                ? args.detail
-                : '';
+                  ? args.detail
+                  : '';
             const highlightComment = rawComment.trim();
             dispatch({
               type: 'SET_HIGHLIGHT',
@@ -470,7 +442,6 @@ function HeartExperience() {
             <HeartModel highlightRegion={controllerState.highlightRegion} />
             <Environment preset="sunset" />
           </Suspense>
-          <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={10} blur={2.5} far={10} />
           <OrbitControls ref={controlsRef} enablePan={false} maxDistance={6} minDistance={1.5} target={[0, 0, 0]} />
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>

@@ -16,8 +16,7 @@ const initialPrompts = [
 
 const initialControllerState = {
   view: { azimuth: 20, elevation: 18, distance: 3.1 },
-  annotation: null,
-  autoRotate: false
+  annotation: null
 };
 
 function controllerReducer(state, action) {
@@ -32,12 +31,9 @@ function controllerReducer(state, action) {
           azimuth: action.payload.azimuth ?? state.view.azimuth,
           elevation: action.payload.elevation ?? state.view.elevation,
           distance: nextDistance
-        },
-        autoRotate: false
+        }
       };
     }
-    case 'SET_AUTO_ROTATE':
-      return { ...state, autoRotate: Boolean(action.payload) };
     case 'SET_ANNOTATION':
       return { ...state, annotation: action.payload };
     default:
@@ -58,7 +54,7 @@ function BrainModel() {
   useEffect(() => {
     if (!brain) return;
 
-    brain.rotation.set(-Math.PI / 2, Math.PI / 2, 0);
+    brain.rotation.set(0, 0, 0);
 
     const boundingBox = new Box3().setFromObject(brain);
     const size = new Vector3();
@@ -140,9 +136,8 @@ function BrainExperience() {
             results.push({
               name,
               status: 'success',
-              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${
-                distance ? `, distance ${distance.toFixed(2)}` : ''
-              }.`,
+              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${distance ? `, distance ${distance.toFixed(2)}` : ''
+                }.`,
               response: {
                 status: 'success',
                 detail: {
@@ -378,7 +373,6 @@ function BrainExperience() {
             <BrainModel />
             <Environment preset="sunset" />
           </Suspense>
-          <ContactShadows position={[0, -1.2, 0]} opacity={0.35} scale={10} blur={2.5} far={10} />
           <OrbitControls ref={controlsRef} enablePan={false} maxDistance={6} minDistance={1.8} target={[0, 0, 0]} />
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
