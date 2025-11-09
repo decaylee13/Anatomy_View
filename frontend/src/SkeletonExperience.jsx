@@ -168,7 +168,6 @@ function SkeletonModel({ highlightRegion }) {
 
 function SkeletonExperience() {
   const [messages, setMessages] = useState([]);
-  const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [controllerState, dispatch] = useReducer(controllerReducer, initialControllerState);
@@ -211,9 +210,8 @@ function SkeletonExperience() {
             results.push({
               name,
               status: 'success',
-              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${
-                distance ? `, distance ${distance.toFixed(2)}` : ''
-              }.`,
+              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${distance ? `, distance ${distance.toFixed(2)}` : ''
+                }.`,
               response: {
                 status: 'success',
                 detail: {
@@ -277,7 +275,7 @@ function SkeletonExperience() {
             }
 
             const regionConfig = findRegionByName(args.region);
-            
+
             if (!regionConfig) {
               const detail = `Unknown skeleton region: "${args.region}".`;
               setStatusMessage(detail);
@@ -470,16 +468,6 @@ function SkeletonExperience() {
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
 
-        {!isChatOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatOpen(true)}
-            className="pointer-events-auto absolute right-6 top-6 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-400"
-          >
-            Open Chat
-          </button>
-        )}
-
         <div className="pointer-events-none absolute left-8 top-8 max-w-md text-white/80 space-y-3">
           <Link
             to="/"
@@ -511,8 +499,6 @@ function SkeletonExperience() {
       </div>
 
       <ChatSidebar
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen((previous) => !previous)}
         messages={messages}
         onSubmit={handleSendMessage}
         isBusy={isSending}
