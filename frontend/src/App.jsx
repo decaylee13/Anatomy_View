@@ -43,7 +43,7 @@ function HeartModel() {
     }
   });
 
-  return <primitive object={heart} position={[0, -0.35, 0]} />;
+  return <primitive object={heart} />;
 }
 
 function CanvasLoader() {
@@ -182,7 +182,7 @@ function App() {
             <Environment preset="sunset" />
           </Suspense>
           <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={10} blur={2.5} far={10} />
-          <OrbitControls enablePan={false} maxDistance={6} minDistance={1.5} target={[0, -0.3, 0]} />
+          <OrbitControls enablePan={false} maxDistance={6} minDistance={1.5} target={[0, 0, 0]} />
         </Canvas>
 
         {!isChatOpen && (
