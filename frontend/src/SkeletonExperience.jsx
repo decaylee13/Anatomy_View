@@ -1,9 +1,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Canvas, useLoader } from '@react-three/fiber';
-import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
+import { Environment, OrbitControls } from '@react-three/drei';
 import { Box3, Group, SRGBColorSpace, Vector3 } from 'three';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 import ChatSidebar from './components/ChatSidebar.jsx';
@@ -78,78 +77,44 @@ function parseToolArguments(args) {
   return args;
 }
 
-function SkeletonModel() {
-  const materialCreators = useLoader(
-    MTLLoader,
-    SKELETON_SUBTOOLS.map((name) => `/human-skeleton-study/source/archive/${name}.mtl`),
-    (loader) => {
-      loader.setResourcePath('/human-skeleton-study/source/archive/');
-      loader.setPath('/human-skeleton-study/source/archive/');
-      loader.setMaterialOptions({ invertTrProperty: true });
-    }
-  );
+function SkeletonPart({ name }) {
+  const obj = useLoader(OBJLoader, `/human-skeleton-study/source/archive/${name}.OBJ`);
 
-  const rawParts = useLoader(
-    OBJLoader,
-    SKELETON_SUBTOOLS.map((name) => `/human-skeleton-study/source/archive/${name}.OBJ`),
-    (loader) => {
-      loader.setPath('/human-skeleton-study/source/archive/');
-      loader.setResourcePath('/human-skeleton-study/source/archive/');
-    }
-  );
+  useEffect(() => {
+    if (!obj) return;
 
-  const skeletonGroup = useMemo(() => {
-    if (!Array.isArray(rawParts) || rawParts.length === 0) return null;
+    obj.traverse((child) => {
+      if (!child.isMesh) return;
 
-    const group = new Group();
+      child.castShadow = true;
+      child.receiveShadow = true;
 
-    rawParts.forEach((part, index) => {
-      if (!part) return;
-
-      const materialCreator = materialCreators?.[index];
-      if (materialCreator?.preload) {
-        materialCreator.preload();
-      }
-
-      const clonedPart = part.clone(true);
-      clonedPart.traverse((child) => {
-        if (!child.isMesh) return;
-
-        if (materialCreator && child.material?.name) {
-          const replacement = materialCreator.create(child.material.name);
-          if (replacement) {
-            child.material = replacement;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        if (!material) return;
+        ['map', 'emissiveMap'].forEach((mapKey) => {
+          const texture = material[mapKey];
+          if (texture && 'colorSpace' in texture) {
+            texture.colorSpace = SRGBColorSpace;
           }
-        }
-
-        child.castShadow = true;
-        child.receiveShadow = true;
-
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
-        materials.forEach((material) => {
-          if (!material) return;
-          ['map', 'emissiveMap'].forEach((mapKey) => {
-            const texture = material[mapKey];
-            if (texture && 'colorSpace' in texture) {
-              texture.colorSpace = SRGBColorSpace;
-            }
-          });
-          material.needsUpdate = true;
         });
+        material.needsUpdate = true;
       });
-
-      group.add(clonedPart);
     });
+  }, [obj]);
 
-    return group;
-  }, [materialCreators, rawParts]);
+  return obj ? <primitive object={obj} /> : null;
+}
+
+function SkeletonModel() {
+  const skeletonGroup = useRef();
 
   const { scale, position } = useMemo(() => {
-    if (!skeletonGroup) {
+    if (!skeletonGroup.current) {
       return { scale: 1, position: new Vector3(0, 0, 0) };
     }
 
-    const boundingBox = new Box3().setFromObject(skeletonGroup);
+    const boundingBox = new Box3().setFromObject(skeletonGroup.current);
     const size = new Vector3();
     boundingBox.getSize(size);
 
@@ -161,16 +126,14 @@ function SkeletonModel() {
     center.multiplyScalar(-computedScale);
 
     return { scale: computedScale, position: center };
-  }, [skeletonGroup]);
-
-  if (!skeletonGroup) return null;
+  }, [skeletonGroup.current]);
 
   return (
-    <primitive
-      object={skeletonGroup}
-      scale={scale}
-      position={[position.x, position.y, position.z]}
-    />
+    <group ref={skeletonGroup} scale={scale} position={[position.x, position.y, position.z]}>
+      {SKELETON_SUBTOOLS.map((name) => (
+        <SkeletonPart key={name} name={name} />
+      ))}
+    </group>
   );
 }
 
@@ -427,7 +390,6 @@ function SkeletonExperience() {
             <SkeletonModel />
             <Environment preset="sunset" />
           </Suspense>
-          <ContactShadows position={[0, -1.4, 0]} scale={12} blur={2.4} opacity={0.45} far={5} />
           <OrbitControls ref={controlsRef} enablePan={false} maxDistance={7} minDistance={2.2} target={[0, 0.4, 0]} />
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>

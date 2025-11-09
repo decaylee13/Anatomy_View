@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  assetsInclude: ['**/*.OBJ', '**/*.mtl', '**/*.fbx'],
   server: {
     port: 5173,
     proxy: {
@@ -11,6 +12,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       }
+    },
+    fs: {
+      strict: false
     }
   }
 });
