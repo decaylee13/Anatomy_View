@@ -26,3 +26,6 @@ __pycache__/
 
 # Logs
 *.log
+
+# Frontend build output
+frontend/dist/
