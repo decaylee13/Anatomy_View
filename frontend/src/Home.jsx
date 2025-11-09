@@ -103,7 +103,7 @@ export default function Home() {
         <section id="chapters" aria-labelledby="chapters-heading" className="space-y-6">
           <Reveal className="flex flex-col gap-2" as="div">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-200/90" id="chapters-heading">
-              Chapters
+              Models
             </p>
             <h2 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Choose an interactive model</h2>
             <p className="max-w-2xl text-sm text-slate-100/80">
