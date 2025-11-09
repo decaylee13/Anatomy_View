@@ -2,11 +2,12 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState
 import { Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, Environment, OrbitControls, useFBX } from '@react-three/drei';
-import { Box3, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, SRGBColorSpace, Vector3 } from 'three';
 
 import ChatSidebar from './components/ChatSidebar.jsx';
 import CanvasLoader from './components/CanvasLoader.jsx';
 import CameraController from './components/CameraController.jsx';
+import { BRAIN_REGIONS, resolveBrainRegionName } from './brainRegions.js';
 
 const initialPrompts = [
   'Describe the functional regions visible on the lateral surface of the brain.',
@@ -16,6 +17,7 @@ const initialPrompts = [
 
 const initialControllerState = {
   view: { azimuth: 20, elevation: 18, distance: 3.1 },
+  highlightRegion: null,
   annotation: null
 };
 
@@ -34,6 +36,10 @@ function controllerReducer(state, action) {
         }
       };
     }
+    case 'SET_HIGHLIGHT':
+      return { ...state, highlightRegion: action.payload };
+    case 'CLEAR_HIGHLIGHT':
+      return { ...state, highlightRegion: null };
     case 'SET_ANNOTATION':
       return { ...state, annotation: action.payload };
     default:
@@ -41,7 +47,21 @@ function controllerReducer(state, action) {
   }
 }
 
-function BrainModel() {
+function parseToolArguments(args) {
+  if (!args) return {};
+  if (typeof args === 'string') {
+    try {
+      const parsed = JSON.parse(args);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      console.warn('Failed to parse tool arguments:', args, error);
+      return {};
+    }
+  }
+  return args;
+}
+
+function BrainModel({ highlightRegion }) {
   const brain = useFBX(
     '/adult-brain/source/Brain_brain_stem.fbx',
     (loader) => {
@@ -50,6 +70,10 @@ function BrainModel() {
       loader.setCrossOrigin('anonymous');
     }
   );
+
+  const groupMapRef = useRef(new Map());
+  const originalColorsRef = useRef(new Map());
+  const meshMapRef = useRef(new Map());
 
   useEffect(() => {
     if (!brain) return;
@@ -69,13 +93,38 @@ function BrainModel() {
     scaledBox.getCenter(scaledCenter);
     brain.position.set(-scaledCenter.x, -scaledCenter.y, -scaledCenter.z);
 
+    // Build maps for groups, meshes, and store original colors
     brain.traverse((child) => {
+      // Log all object types and names for debugging
+      if (child.name) {
+        console.log(`Brain object found - Type: ${child.type}, Name: "${child.name}"`);
+      }
+
+      // Map groups by name
+      if (child.type === 'Group' && child.name) {
+        groupMapRef.current.set(child.name.toLowerCase(), child);
+        console.log('Brain group found:', child.name);
+      }
+
+      // Map meshes by name
+      if (child.isMesh && child.name) {
+        meshMapRef.current.set(child.name.toLowerCase(), child);
+        console.log('Brain mesh found:', child.name);
+      }
+
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach((material) => {
           if (!material) return;
+          
+          // Store original color if not already stored
+          if (material.color && !originalColorsRef.current.has(material.uuid)) {
+            originalColorsRef.current.set(material.uuid, material.color.clone());
+          }
+          
           ['map', 'emissiveMap'].forEach((mapKey) => {
             const texture = material[mapKey];
             if (texture && 'colorSpace' in texture) {
@@ -86,7 +135,143 @@ function BrainModel() {
         });
       }
     });
+
+    console.log('Available brain groups:', Array.from(groupMapRef.current.keys()));
+    console.log('Available brain meshes:', Array.from(meshMapRef.current.keys()));
   }, [brain]);
+
+  // Handle highlighting by changing colors of meshes in matched groups or meshes
+  useEffect(() => {
+    if (!brain) return;
+
+    // Reset all materials to original colors first
+    originalColorsRef.current.forEach((originalColor, uuid) => {
+      brain.traverse((child) => {
+        if (child.isMesh) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.forEach((material) => {
+            if (material && material.uuid === uuid) {
+              material.color.copy(originalColor);
+              material.emissive?.set(0x000000);
+              material.emissiveIntensity = 0;
+              material.needsUpdate = true;
+            }
+          });
+        }
+      });
+    });
+
+    // Apply highlight if region is selected
+    if (highlightRegion?.key) {
+      const regionConfig = BRAIN_REGIONS[highlightRegion.key];
+      const highlightColor = new Color(highlightRegion.color || regionConfig?.color || '#00ff00');
+      
+      const groupKeys = Array.from(groupMapRef.current.keys());
+      const meshKeys = Array.from(meshMapRef.current.keys());
+      let matchedGroup = null;
+      let matchedMeshes = [];
+
+      // Try to match using group patterns from config
+      if (regionConfig?.groupPatterns) {
+        for (const pattern of regionConfig.groupPatterns) {
+          const normalizedPattern = pattern.toLowerCase();
+          
+          // Try matching groups
+          for (const groupKey of groupKeys) {
+            const normalizedGroupKey = groupKey.toLowerCase().replace(/[\s_-]/g, '');
+            const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
+            
+            if (normalizedGroupKey.includes(normalizedPatternClean) || 
+                normalizedPatternClean.includes(normalizedGroupKey)) {
+              matchedGroup = groupMapRef.current.get(groupKey);
+              console.log(`Matched region "${highlightRegion.key}" to group "${groupKey}" using pattern "${pattern}"`);
+              break;
+            }
+          }
+          
+          // Try matching meshes by name
+          for (const meshKey of meshKeys) {
+            const normalizedMeshKey = meshKey.toLowerCase().replace(/[\s_-]/g, '');
+            const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
+            
+            if (normalizedMeshKey.includes(normalizedPatternClean) || 
+                normalizedPatternClean.includes(normalizedMeshKey)) {
+              const mesh = meshMapRef.current.get(meshKey);
+              matchedMeshes.push(mesh);
+              console.log(`Matched region "${highlightRegion.key}" to mesh "${meshKey}" using pattern "${pattern}"`);
+            }
+          }
+          
+          if (matchedGroup || matchedMeshes.length > 0) break;
+        }
+      }
+
+      // Fallback: try fuzzy matching on region key
+      if (!matchedGroup && matchedMeshes.length === 0) {
+        const regionKey = highlightRegion.key.toLowerCase().replace(/[\s_-]/g, '');
+        
+        // Try groups
+        for (const groupKey of groupKeys) {
+          const normalizedGroupKey = groupKey.toLowerCase().replace(/[\s_-]/g, '');
+          if (normalizedGroupKey.includes(regionKey) || regionKey.includes(normalizedGroupKey)) {
+            matchedGroup = groupMapRef.current.get(groupKey);
+            console.log(`Matched region "${highlightRegion.key}" to group "${groupKey}" using fuzzy match`);
+            break;
+          }
+        }
+        
+        // Try meshes
+        for (const meshKey of meshKeys) {
+          const normalizedMeshKey = meshKey.toLowerCase().replace(/[\s_-]/g, '');
+          if (normalizedMeshKey.includes(regionKey) || regionKey.includes(normalizedMeshKey)) {
+            const mesh = meshMapRef.current.get(meshKey);
+            matchedMeshes.push(mesh);
+            console.log(`Matched region "${highlightRegion.key}" to mesh "${meshKey}" using fuzzy match`);
+          }
+        }
+      }
+
+      // Apply highlight to matched group
+      if (matchedGroup) {
+        matchedGroup.traverse((child) => {
+          if (child.isMesh) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((material) => {
+              if (material) {
+                material.color.copy(highlightColor);
+                material.emissive = highlightColor.clone();
+                material.emissiveIntensity = 0.6;
+                material.needsUpdate = true;
+              }
+            });
+          }
+        });
+        console.log(`Applied highlight color ${highlightColor.getHexString()} to group for region "${highlightRegion.key}"`);
+      }
+      
+      // Apply highlight to matched meshes
+      if (matchedMeshes.length > 0) {
+        matchedMeshes.forEach((mesh) => {
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          materials.forEach((material) => {
+            if (material) {
+              material.color.copy(highlightColor);
+              material.emissive = highlightColor.clone();
+              material.emissiveIntensity = 0.6;
+              material.needsUpdate = true;
+            }
+          });
+        });
+        console.log(`Applied highlight color ${highlightColor.getHexString()} to ${matchedMeshes.length} meshes for region "${highlightRegion.key}"`);
+      }
+      
+      if (!matchedGroup && matchedMeshes.length === 0) {
+        console.warn(`No group or mesh found for region: ${highlightRegion.key}`);
+        console.log('Available groups:', groupKeys);
+        console.log('Available meshes:', meshKeys);
+      }
+    }
+  }, [brain, highlightRegion]);
 
   return brain ? <primitive object={brain} /> : null;
 }
@@ -111,7 +296,8 @@ function BrainExperience() {
       const results = [];
 
       toolCalls.forEach((tool) => {
-        const { name, arguments: args = {} } = tool;
+        const { name, arguments: rawArguments = {} } = tool;
+        const args = parseToolArguments(rawArguments);
         switch (name) {
           case 'set_heart_view':
           case 'set_brain_view': {
@@ -149,6 +335,70 @@ function BrainExperience() {
             });
             break;
           }
+          case 'highlight_brain_region': {
+            const resolved = resolveBrainRegionName(args.region);
+            if (!resolved) {
+              const warning = `Unknown brain region: ${args.region ?? 'unspecified'}.`;
+              setStatusMessage(warning);
+              results.push({
+                name,
+                status: 'error',
+                message: warning,
+                response: {
+                  status: 'error',
+                  detail: warning
+                }
+              });
+              return;
+            }
+            const hexColorRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+            const colorInput = typeof args.color === 'string' ? args.color.trim() : '';
+            const highlightColor = hexColorRegex.test(colorInput) ? colorInput : resolved.data.color;
+            const rawComment =
+              typeof args.comment === 'string'
+                ? args.comment
+                : typeof args.detail === 'string'
+                  ? args.detail
+                  : '';
+            const highlightComment = rawComment.trim();
+            dispatch({
+              type: 'SET_HIGHLIGHT',
+              payload: {
+                key: resolved.key,
+                color: highlightColor,
+                label: resolved.data.label,
+                comment: highlightComment
+              }
+            });
+            results.push({
+              name,
+              status: 'success',
+              message: `Highlighted ${resolved.data.label}.`,
+              response: {
+                status: 'success',
+                detail: {
+                  regionKey: resolved.key,
+                  regionLabel: resolved.data.label,
+                  color: highlightColor,
+                  ...(highlightComment ? { comment: highlightComment } : {})
+                }
+              }
+            });
+            break;
+          }
+          case 'clear_highlighted_region': {
+            dispatch({ type: 'CLEAR_HIGHLIGHT' });
+            results.push({
+              name,
+              status: 'success',
+              message: 'Cleared highlighted region.',
+              response: {
+                status: 'success',
+                detail: 'Cleared highlighted region.'
+              }
+            });
+            break;
+          }
           case 'toggle_auto_rotation': {
             if (typeof args.enabled !== 'boolean') {
               results.push({
@@ -175,7 +425,7 @@ function BrainExperience() {
             break;
           }
           case 'highlight_heart_region': {
-            const detail = 'Brain highlighting is not available in this viewer yet.';
+            const detail = 'Heart highlighting is not available in the brain viewer.';
             setStatusMessage(detail);
             results.push({
               name,
@@ -188,19 +438,8 @@ function BrainExperience() {
             });
             break;
           }
-          case 'clear_highlighted_region': {
-            results.push({
-              name,
-              status: 'success',
-              message: 'No highlight active for the brain model.',
-              response: {
-                status: 'success',
-                detail: 'No highlight active for the brain model.'
-              }
-            });
-            break;
-          }
-          case 'annotate_heart_focus': {
+          case 'annotate_heart_focus':
+          case 'annotate_brain_focus': {
             if (!args.title || !args.description) {
               results.push({
                 name,
@@ -321,13 +560,25 @@ function BrainExperience() {
               }
             }
             if (assistantIndex !== -1) {
+              const highlightSummaries = executionResults
+                .filter(
+                  (result) =>
+                    result.name === 'highlight_brain_region' &&
+                    result.status === 'success' &&
+                    result.response?.detail?.color
+                )
+                .map((result) => ({
+                  color: result.response.detail.color,
+                  regionLabel: result.response.detail.regionLabel ?? result.response.detail.region ?? 'Highlighted region',
+                  comment: result.response.detail.comment ?? ''
+                }));
               const otherToolResults = executionResults.filter(
-                (result) => result.name !== 'highlight_heart_region'
+                (result) => result.name !== 'highlight_brain_region'
               );
               updated[assistantIndex] = {
                 ...updated[assistantIndex],
                 toolResults: otherToolResults,
-                highlightSummaries: []
+                highlightSummaries
               };
             }
             return updated;
@@ -370,7 +621,7 @@ function BrainExperience() {
             shadow-mapSize={1024}
           />
           <Suspense fallback={<CanvasLoader label="Loading brain model…" />}>
-            <BrainModel />
+            <BrainModel highlightRegion={controllerState.highlightRegion} />
             <Environment preset="sunset" />
           </Suspense>
           <OrbitControls ref={controlsRef} enablePan={false} maxDistance={6} minDistance={1.8} target={[0, 0, 0]} />
