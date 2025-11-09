@@ -2,12 +2,13 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState
 import { Link } from 'react-router-dom';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Environment, OrbitControls } from '@react-three/drei';
-import { Box3, Color, Group, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, SRGBColorSpace, Vector3 } from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 import ChatSidebar from './components/ChatSidebar.jsx';
 import CanvasLoader from './components/CanvasLoader.jsx';
 import CameraController from './components/CameraController.jsx';
+import { SKELETON_REGIONS, findRegionByName } from './skeletonRegions.js';
 
 const initialPrompts = [
   'Highlight the major bones that form the axial skeleton.',
@@ -59,110 +60,79 @@ function parseToolArguments(args) {
   return args;
 }
 
-function SkeletonModel({ highlightRegion }) {
-  const obj = useLoader(OBJLoader, '/newskeleton.obj');
-  const skeletonGroup = useRef();
-  const meshMapRef = useRef(new Map());
+function SkeletonPart({ fileName, highlightColor }) {
+  const obj = useLoader(OBJLoader, `/${fileName}.obj`);
   const originalColorsRef = useRef(new Map());
 
   useEffect(() => {
     if (!obj) return;
 
     obj.traverse((child) => {
-      console.log(`Skeleton object found - Type: ${child.type}, Name: "${child.name}"`);
+      if (!child.isMesh) return;
 
-      if (child.isMesh) {
-        const meshName = child.name.toLowerCase();
-        meshMapRef.current.set(meshName, child);
+      child.castShadow = true;
+      child.receiveShadow = true;
 
-        child.castShadow = true;
-        child.receiveShadow = true;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        if (!material) return;
 
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
-        materials.forEach((material) => {
-          if (!material) return;
-
-          // Store original colors
-          if (!originalColorsRef.current.has(child.uuid)) {
-            originalColorsRef.current.set(child.uuid, {
-              color: material.color ? material.color.clone() : new Color(0xffffff),
-              emissive: material.emissive ? material.emissive.clone() : new Color(0x000000)
-            });
-          }
-
-          ['map', 'emissiveMap'].forEach((mapKey) => {
-            const texture = material[mapKey];
-            if (texture && 'colorSpace' in texture) {
-              texture.colorSpace = SRGBColorSpace;
-            }
+        // Store original colors
+        if (!originalColorsRef.current.has(child.uuid)) {
+          originalColorsRef.current.set(child.uuid, {
+            color: material.color ? material.color.clone() : new Color(0xcccccc),
+            emissive: material.emissive ? material.emissive.clone() : new Color(0x000000)
           });
-          material.needsUpdate = true;
-        });
-      }
-    });
+        }
 
-    console.log('Available skeleton meshes:', Array.from(meshMapRef.current.keys()));
+        // Set default bone color if not already set
+        if (!material.color) {
+          material.color = new Color(0xcccccc);
+        }
+
+        ['map', 'emissiveMap'].forEach((mapKey) => {
+          const texture = material[mapKey];
+          if (texture && 'colorSpace' in texture) {
+            texture.colorSpace = SRGBColorSpace;
+          }
+        });
+        material.needsUpdate = true;
+      });
+    });
   }, [obj]);
 
   // Handle highlighting
   useEffect(() => {
-    if (!highlightRegion) {
-      // Reset all colors
-      meshMapRef.current.forEach((mesh) => {
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        materials.forEach((material) => {
-          if (!material) return;
-          const originalColors = originalColorsRef.current.get(mesh.uuid);
-          if (originalColors) {
-            material.color.copy(originalColors.color);
-            material.emissive.copy(originalColors.emissive);
-            material.needsUpdate = true;
-          }
-        });
-      });
-      return;
-    }
+    if (!obj) return;
 
-    const { meshPatterns, color } = highlightRegion;
-    const targetColor = new Color(color);
-    const meshesToHighlight = [];
+    obj.traverse((child) => {
+      if (!child.isMesh) return;
 
-    meshPatterns.forEach((pattern) => {
-      const lowerPattern = pattern.toLowerCase();
-      meshMapRef.current.forEach((mesh, meshName) => {
-        if (meshName.includes(lowerPattern)) {
-          meshesToHighlight.push(mesh);
-        }
-      });
-    });
-
-    console.log('Highlighting meshes:', meshesToHighlight.map(m => m.name));
-
-    // Reset all first
-    meshMapRef.current.forEach((mesh) => {
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
       materials.forEach((material) => {
         if (!material) return;
-        const originalColors = originalColorsRef.current.get(mesh.uuid);
-        if (originalColors) {
+
+        const originalColors = originalColorsRef.current.get(child.uuid);
+        if (!originalColors) return;
+
+        if (highlightColor) {
+          const targetColor = new Color(highlightColor);
+          material.color.copy(targetColor);
+          material.emissive.copy(targetColor);
+        } else {
           material.color.copy(originalColors.color);
           material.emissive.copy(originalColors.emissive);
-          material.needsUpdate = true;
         }
-      });
-    });
-
-    // Then highlight matched meshes
-    meshesToHighlight.forEach((mesh) => {
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      materials.forEach((material) => {
-        if (!material) return;
-        material.color.copy(targetColor);
-        material.emissive.copy(targetColor);
         material.needsUpdate = true;
       });
     });
-  }, [highlightRegion]);
+  }, [obj, highlightColor]);
+
+  return obj ? <primitive object={obj} /> : null;
+}
+
+function SkeletonModel({ highlightRegion }) {
+  const skeletonGroup = useRef();
 
   const { scale, position } = useMemo(() => {
     if (!skeletonGroup.current) {
@@ -185,7 +155,13 @@ function SkeletonModel({ highlightRegion }) {
 
   return (
     <group ref={skeletonGroup} scale={scale} position={[position.x, position.y, position.z]}>
-      {obj ? <primitive object={obj} /> : null}
+      {Object.entries(SKELETON_REGIONS).map(([key, region]) => (
+        <SkeletonPart
+          key={key}
+          fileName={region.fileName}
+          highlightColor={highlightRegion?.fileName === region.fileName ? highlightRegion.color : null}
+        />
+      ))}
     </group>
   );
 }
@@ -300,9 +276,7 @@ function SkeletonExperience() {
               return;
             }
 
-            // Import will be added at top after we create skeletonRegions.js
-            const regionKey = args.region.toLowerCase();
-            const regionConfig = null; // Will be replaced with SKELETON_REGIONS[regionKey]
+            const regionConfig = findRegionByName(args.region);
             
             if (!regionConfig) {
               const detail = `Unknown skeleton region: "${args.region}".`;
@@ -320,7 +294,7 @@ function SkeletonExperience() {
             dispatch({
               type: 'HIGHLIGHT_REGION',
               payload: {
-                meshPatterns: regionConfig.meshPatterns,
+                fileName: regionConfig.fileName,
                 color: highlightColor
               }
             });
