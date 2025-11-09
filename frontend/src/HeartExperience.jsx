@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState
 import { Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, Environment, OrbitControls, useFBX } from '@react-three/drei';
-import { Box3, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, SRGBColorSpace, Vector3 } from 'three';
 
 import ChatSidebar from './components/ChatSidebar.jsx';
 import CanvasLoader from './components/CanvasLoader.jsx';
@@ -61,30 +61,6 @@ function parseToolArguments(args) {
   return args;
 }
 
-function RegionHighlight({ highlight }) {
-  if (!highlight?.key) return null;
-  const config = HEART_REGIONS[highlight.key];
-  const color = highlight.color ?? config?.color;
-  const position = highlight.position ?? config?.position;
-
-  if (!config || !color || !position) return null;
-
-  return (
-    <group position={position}>
-      <mesh>
-        <sphereGeometry args={[0.08, 32, 32]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={1.8}
-          transparent
-          opacity={0.75}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 function HeartModel({ highlightRegion }) {
   const heart = useFBX(
     '/segmented-adult-heart/source/human-heart-3d-animated.fbx',
@@ -95,12 +71,14 @@ function HeartModel({ highlightRegion }) {
     }
   );
 
+  const materialMapRef = useRef(new Map());
+  const originalColorsRef = useRef(new Map());
+
   useEffect(() => {
     if (!heart) return;
 
     // Set rotation to make heart upright and facing forward
     heart.rotation.set(0, 0, 0);
-
     heart.position.set(0, 0, 0);
 
     const boundingBox = new Box3().setFromObject(heart);
@@ -116,16 +94,31 @@ function HeartModel({ highlightRegion }) {
     const scaledCenter = new Vector3();
     scaledBox.getCenter(scaledCenter);
 
-    // Center the heart at world origin (0, 0, 0) - same as brain
+    // Center the heart at world origin (0, 0, 0)
     heart.position.set(-scaledCenter.x, -scaledCenter.y, -scaledCenter.z);
 
+    // Build material map and store original colors
     heart.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach((material) => {
           if (!material) return;
+          
+          // Store original color if not already stored
+          if (material.color && !originalColorsRef.current.has(material.uuid)) {
+            originalColorsRef.current.set(material.uuid, material.color.clone());
+          }
+          
+          // Map material name to material reference
+          if (material.name) {
+            materialMapRef.current.set(material.name.toLowerCase(), material);
+            console.log('Heart material found:', material.name);
+          }
+          
+          // Set up textures
           ['map', 'emissiveMap'].forEach((mapKey) => {
             const texture = material[mapKey];
             if (texture && 'colorSpace' in texture) {
@@ -136,14 +129,86 @@ function HeartModel({ highlightRegion }) {
         });
       }
     });
+
+    console.log('Available heart materials:', Array.from(materialMapRef.current.keys()));
   }, [heart]);
 
-  return (
-    <group>
-      {heart ? <primitive object={heart} /> : null}
-      <RegionHighlight highlight={highlightRegion} />
-    </group>
-  );
+  // Handle highlighting by changing material colors
+  useEffect(() => {
+    if (!heart) return;
+
+    // Reset all materials to original colors first
+    originalColorsRef.current.forEach((originalColor, uuid) => {
+      heart.traverse((child) => {
+        if (child.isMesh) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.forEach((material) => {
+            if (material && material.uuid === uuid) {
+              material.color.copy(originalColor);
+              material.emissive?.set(0x000000);
+              material.emissiveIntensity = 0;
+              material.needsUpdate = true;
+            }
+          });
+        }
+      });
+    });
+
+    // Apply highlight if region is selected
+    if (highlightRegion?.key) {
+      const regionConfig = HEART_REGIONS[highlightRegion.key];
+      const highlightColor = new Color(highlightRegion.color || regionConfig?.color || '#00ff00');
+      
+      const materialKeys = Array.from(materialMapRef.current.keys());
+      let matchedMaterial = null;
+
+      // Try to match using material patterns from config
+      if (regionConfig?.materialPatterns) {
+        for (const pattern of regionConfig.materialPatterns) {
+          const normalizedPattern = pattern.toLowerCase();
+          for (const materialKey of materialKeys) {
+            const normalizedMaterialKey = materialKey.toLowerCase().replace(/[\s_-]/g, '');
+            const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
+            
+            if (normalizedMaterialKey.includes(normalizedPatternClean) || 
+                normalizedPatternClean.includes(normalizedMaterialKey)) {
+              matchedMaterial = materialMapRef.current.get(materialKey);
+              console.log(`Matched region "${highlightRegion.key}" to material "${materialKey}" using pattern "${pattern}"`);
+              break;
+            }
+          }
+          if (matchedMaterial) break;
+        }
+      }
+
+      // Fallback: try fuzzy matching on region key
+      if (!matchedMaterial) {
+        const regionKey = highlightRegion.key.toLowerCase().replace(/[\s_-]/g, '');
+        for (const materialKey of materialKeys) {
+          const normalizedMaterialKey = materialKey.toLowerCase().replace(/[\s_-]/g, '');
+          if (normalizedMaterialKey.includes(regionKey) || regionKey.includes(normalizedMaterialKey)) {
+            matchedMaterial = materialMapRef.current.get(materialKey);
+            console.log(`Matched region "${highlightRegion.key}" to material "${materialKey}" using fuzzy match`);
+            break;
+          }
+        }
+      }
+
+      if (matchedMaterial) {
+        // Apply highlight color with emissive effect
+        matchedMaterial.color.copy(highlightColor);
+        matchedMaterial.emissive = highlightColor.clone();
+        matchedMaterial.emissiveIntensity = 0.6;
+        matchedMaterial.needsUpdate = true;
+        console.log(`Applied highlight color ${highlightColor.getHexString()} to region "${highlightRegion.key}"`);
+      } else {
+        console.warn(`No material found for region: ${highlightRegion.key}`);
+        console.log('Available materials:', materialKeys);
+      }
+    }
+  }, [heart, highlightRegion]);
+
+  return heart ? <primitive object={heart} /> : null;
 }
 
 function HeartExperience() {
