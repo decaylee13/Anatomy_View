@@ -557,13 +557,6 @@ function HeartExperience() {
           </div>
         </div>
 
-        {controllerState.annotation ? (
-          <div className="pointer-events-auto absolute left-8 bottom-8 max-w-sm rounded-2xl border border-white/10 bg-slate-900/80 p-4 text-white/80 shadow-xl">
-            <h3 className="text-sm font-semibold text-white">{controllerState.annotation.title}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-white/70">{controllerState.annotation.description}</p>
-          </div>
-        ) : null}
-
         {statusMessage ? (
           <div className="pointer-events-auto absolute left-1/2 top-6 -translate-x-1/2 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2 text-xs font-medium text-white/80 shadow-xl">
             {statusMessage}
@@ -580,6 +573,7 @@ function HeartExperience() {
         subtitle="Dedalus Labs link to Gemini for guided exploration."
         placeholder="Ask the assistant about the heart…"
         processTrace={agentProcessSteps}
+        annotation={controllerState.annotation}
       />
     </div>
   );

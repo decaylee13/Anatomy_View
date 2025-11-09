@@ -8,7 +8,8 @@ function ChatSidebar({
   title = 'Anatomy Assistant',
   subtitle = 'Guided exploration powered by Dedalus Labs.',
   placeholder = 'Ask the assistant…',
-  processTrace = []
+  processTrace = [],
+  annotation = null
 }) {
   const [pendingMessage, setPendingMessage] = useState('');
 
@@ -63,6 +64,14 @@ function ChatSidebar({
                 );
               })}
             </ul>
+          </div>
+        ) : null}
+
+        {annotation ? (
+          <div className="space-y-2 rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white/80 shadow-inner">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">Scene annotation</p>
+            <h3 className="text-base font-semibold text-white">{annotation.title}</h3>
+            <p className="text-sm leading-relaxed text-white/70">{annotation.description}</p>
           </div>
         ) : null}
 
