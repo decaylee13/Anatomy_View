@@ -404,7 +404,6 @@ function App() {
           }
           case 'clear_highlighted_region': {
             dispatch({ type: 'CLEAR_HIGHLIGHT' });
-            dispatch({ type: 'SET_ANNOTATION', payload: null });
             results.push({
               name,
               status: 'success',
