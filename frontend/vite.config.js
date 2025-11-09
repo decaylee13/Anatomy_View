@@ -6,15 +6,13 @@ export default defineConfig({
   assetsInclude: ['**/*.OBJ', '**/*.mtl', '**/*.fbx'],
   server: {
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5001',
-        changeOrigin: true,
-        secure: false
-      }
-    },
+    // No proxy needed when using VITE_API_BASE_URL with full URL
     fs: {
       strict: false
     }
+  },
+  build: {
+    // Ensure env variables are replaced at build time
+    outDir: 'dist'
   }
 });
