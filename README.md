@@ -65,12 +65,24 @@ Three.js heart scene.
    npm run dev
    ```
 
-3. Start the Flask server with the same environment variables so the `/api/chat` route can contact Gemini:
+3. Provide Dedalus Labs credentials so semantic medical questions can be answered with the Dedalus SDK. Set the
+   credentials required by the SDK (for example `DEDALUS_API_KEY`) and optionally choose a model variant:
+
+   ```bash
+   export DEDALUS_ENABLED=true
+   export DEDALUS_MODEL="openai/gpt-5"
+   ```
+
+4. Start the Flask server with the same environment variables so the `/api/chat` route can contact Gemini and
+   Dedalus Labs:
 
    ```bash
    cd backend
    flask --app server run
    ```
 
-If the API key is missing, the assistant will return a friendly error message instead of contacting Gemini. Successful
-responses include tool call metadata that the frontend uses to animate the model.
+If the Gemini API key is missing, the assistant will return a friendly error message instead of contacting Gemini.
+When Dedalus Labs is enabled, the backend will automatically route purely semantic medical questions to Dedalus while
+continuing to use Gemini for anatomy-specific instructions and tool calls. Successful responses include tool call
+metadata that the frontend uses to animate the model, along with a `replySource` field indicating whether Gemini or
+Dedalus generated the textual explanation.
