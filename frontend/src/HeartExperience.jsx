@@ -215,7 +215,6 @@ function HeartModel({ highlightRegion }) {
 function HeartExperience() {
   const { steps: agentProcessSteps, startTrace, updateFromServer, markFinalStatus } = useAgentProcessTrace();
   const [messages, setMessages] = useState([]);
-  const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [controllerState, dispatch] = useReducer(controllerReducer, initialControllerState);
@@ -542,16 +541,6 @@ function HeartExperience() {
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
 
-        {!isChatOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatOpen(true)}
-            className="pointer-events-auto absolute right-6 top-6 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-400"
-          >
-            Open Chat
-          </button>
-        )}
-
         <div className="pointer-events-none absolute left-8 top-8 max-w-md text-white/80 space-y-3">
           <Link
             to="/"
@@ -583,8 +572,6 @@ function HeartExperience() {
       </div>
 
       <ChatSidebar
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen((previous) => !previous)}
         messages={messages}
         onSubmit={handleSendMessage}
         isBusy={isSending}

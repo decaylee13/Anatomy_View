@@ -1,8 +1,6 @@
 import { useState } from 'react';
 
 function ChatSidebar({
-  isOpen,
-  onClose,
   messages,
   onSubmit,
   isBusy,
@@ -24,31 +22,12 @@ function ChatSidebar({
   };
 
   return (
-    <aside
-      className={`relative flex h-full flex-col overflow-hidden bg-slate-900/95 text-slate-100 shadow-2xl transition-[transform,width] duration-300 ease-in-out ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
-      style={{ width: isOpen ? '26rem' : '0rem', transform: `translateX(${isOpen ? '0%' : '100%'})` }}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 rounded-l-3xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg"
-      >
-        {isOpen ? 'Hide Chat' : 'Open Chat'}
-      </button>
-
+    <aside className="flex h-full w-[26rem] flex-col overflow-hidden bg-slate-900/95 text-slate-100 shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
         <div>
           <h2 className="text-lg font-semibold">{title}</h2>
           <p className="text-xs text-white/60">{subtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/70 transition hover:bg-white/20"
-        >
-          Hide
-        </button>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
