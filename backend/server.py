@@ -224,7 +224,7 @@ TOOLS: List[Dict[str, Any]] = [
 class DedalusService:
     """Thin wrapper that manages a background Dedalus Labs runner."""
 
-    _TEXT_KEY_TOKENS = ('text', 'message', 'content', 'output', 'delta', 'value', 'response')
+    _TEXT_KEY_TOKENS = ('text', 'message', 'content', 'response', 'paragraph')
 
     def __init__(self, enabled: bool, model: str) -> None:
         self.model = model
@@ -406,7 +406,26 @@ class DedalusService:
 
         if isinstance(payload, dict):
             fragments: List[str] = []
+
+            inline_text = payload.get('text')
+            if isinstance(inline_text, str):
+                fragments.append(inline_text)
+
+            ignore_keys = {
+                'id',
+                'model',
+                'type',
+                'role',
+                'index',
+                'finish_reason',
+                'created',
+                'usage',
+                'provider'
+            }
+
             for key, value in payload.items():
+                if key in ignore_keys:
+                    continue
                 lowered = key.lower()
                 next_hint = lowered if any(token in lowered for token in self._TEXT_KEY_TOKENS) else key_hint
                 fragments.extend(self._extract_text_fragments(value, next_hint))
@@ -623,25 +642,38 @@ def chat() -> Any:
 
     reply_text = '\n'.join(fragment.strip() for fragment in reply_text_fragments if fragment.strip())
     reply_source = 'gemini'
+    study_info = ''
 
-    if dedalus_service.should_route(messages, tool_calls):
-        record_step('dispatching_to_dedalus', {'model': DEDALUS_MODEL}, status='started')
+    if dedalus_service.enabled:
+        heuristic_hint = dedalus_service.should_route(messages, tool_calls)
+        record_step(
+            'dispatching_to_dedalus',
+            {
+                'model': DEDALUS_MODEL,
+                'heuristicSuggested': heuristic_hint
+            },
+            status='started'
+        )
         dedalus_started = perf_counter()
         prompt = dedalus_service.build_prompt(messages)
         dedalus_reply = dedalus_service.ask(prompt)
         if dedalus_reply:
             latency_ms = round((perf_counter() - dedalus_started) * 1000, 2)
-            record_step('dispatching_to_dedalus', {
-                'model': DEDALUS_MODEL,
-                'latencyMs': latency_ms
-            }, status='complete')
+            record_step(
+                'dispatching_to_dedalus',
+                {
+                    'model': DEDALUS_MODEL,
+                    'latencyMs': latency_ms,
+                    'heuristicSuggested': heuristic_hint
+                },
+                status='complete'
+            )
             record_step('receiving_dedalus_response', {'latencyMs': latency_ms}, status='complete')
-            reply_text = dedalus_reply.strip()
-            reply_source = 'dedalus'
+            study_info = dedalus_reply.strip() or 'Study information is currently unavailable.'
         else:
             record_step(
                 'dispatching_to_dedalus',
-                {'reason': 'dedalus_request_failed'},
+                {'reason': 'dedalus_request_failed', 'model': DEDALUS_MODEL},
                 status='error'
             )
             record_step(
@@ -649,6 +681,19 @@ def chat() -> Any:
                 {'reason': 'dedalus_request_failed'},
                 status='error'
             )
+            study_info = 'Study information is currently unavailable.'
+    else:
+        record_step(
+            'dispatching_to_dedalus',
+            {'reason': 'dedalus_disabled'},
+            status='error'
+        )
+        record_step(
+            'receiving_dedalus_response',
+            {'reason': 'dedalus_disabled'},
+            status='error'
+        )
+        study_info = 'Study information is currently unavailable.'
 
     # Only provide fallback message if there's truly no text AND no tool calls
     if not reply_text:
@@ -662,13 +707,15 @@ def chat() -> Any:
     record_step('rendering_reply', {
         'hasText': bool(reply_text),
         'toolCallCount': len(tool_calls),
-        'replySource': reply_source
+        'replySource': reply_source,
+        'studyInfoLength': len(study_info)
     })
 
     return jsonify({
         'reply': reply_text,
         'toolCalls': tool_calls,
         'replySource': reply_source,
+        'studyInfo': study_info,
         'raw': {
             'finishReason': top_candidate.get('finishReason'),
             'safetyRatings': top_candidate.get('safetyRatings')
