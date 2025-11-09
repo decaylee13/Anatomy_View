@@ -36,10 +36,13 @@ CRITICAL RESPONSE RULES:
 Available anatomical models and their structures:
 - HEART: left atrium, right atrium, left ventricle, right ventricle, aorta, pulmonary trunk, veins, arteries
 - BRAIN: left hemisphere, right hemisphere, brain stem, cerebellum, olfactory nerve, stria medullaris
+- SKELETON: skull, spine, rib cage, scapula, clavicle, pelvis, left/right humerus, left/right hand, 
+  left/right femur, left/right patella, left/right tibia, left/right fibula, left/right foot
 
 Use the appropriate highlight tool for the model being viewed:
 - Use highlight_heart_region for heart structures
 - Use highlight_brain_region for brain structures
+- Use highlight_skeleton_region for skeleton bones
 - change the viewer orientation when the learner asks to look from a different angle;
 - enable or disable the model's ambient rotation when needed;
 - add short annotations that summarise key facts about the current focus area.
@@ -112,6 +115,28 @@ TOOLS: List[Dict[str, Any]] = [
                         'region': {
                             'type': 'string',
                             'description': 'Name of the brain structure to highlight (e.g. "left hemisphere", "cerebellum", "brain stem").'
+                        },
+                        'color': {
+                            'type': 'string',
+                            'description': 'Hex color code for the highlight (e.g. "#ff00ff" for magenta). Use bright, non-anatomical colors like magenta, cyan, lime, or purple unless user specifies otherwise. Avoid red, orange, yellow, and blue.'
+                        },
+                        'detail': {
+                            'type': 'string',
+                            'description': 'Optional brief note about this specific highlight (keep very short, main explanation goes in your primary response text).'
+                        }
+                    },
+                    'required': ['region']
+                }
+            },
+            {
+                'name': 'highlight_skeleton_region',
+                'description': 'Highlight a bone or skeletal structure by changing its color.',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'region': {
+                            'type': 'string',
+                            'description': 'Name of the skeletal structure to highlight (e.g. "skull", "spine", "femur", "left hand", "rib cage").'
                         },
                         'color': {
                             'type': 'string',
