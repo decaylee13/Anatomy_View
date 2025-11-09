@@ -1,14 +1,22 @@
+import asyncio
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+try:
+    from dedalus_labs import AsyncDedalus, DedalusRunner
+except ImportError:  # pragma: no cover - optional dependency
+    AsyncDedalus = None  # type: ignore[assignment]
+    DedalusRunner = None  # type: ignore[assignment]
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,12 +31,17 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'models/gemini-1.5-flash-latest')
 GEMINI_API_URL = f'https://generativelanguage.googleapis.com/v1beta/{GEMINI_MODEL}:generateContent'
 
+DEDALUS_ENABLED = os.getenv('DEDALUS_ENABLED', 'true').lower() not in {'0', 'false', 'off', 'no'}
+DEDALUS_MODEL = os.getenv('DEDALUS_MODEL', 'openai/gpt-5')
+
 AGENT_STEP_LABELS = {
     'reading_prompt': 'Reading user prompt',
     'augmenting_context': 'Augmenting context',
     'dispatching_to_gemini': 'Dispatching to Gemini',
     'receiving_gemini_response': 'Receiving response from Gemini',
     'extracting_tool_calls': 'Extracting tool calls',
+    'dispatching_to_dedalus': 'Dispatching to Dedalus Labs',
+    'receiving_dedalus_response': 'Receiving response from Dedalus Labs',
     'rendering_reply': 'Rendering final reply'
 }
 
@@ -208,6 +221,222 @@ TOOLS: List[Dict[str, Any]] = [
 ]
 
 
+class DedalusService:
+    """Thin wrapper that manages a background Dedalus Labs runner."""
+
+    _TEXT_KEY_TOKENS = ('text', 'message', 'content', 'output', 'delta', 'value', 'response')
+
+    def __init__(self, enabled: bool, model: str) -> None:
+        self.model = model
+        self.enabled = bool(enabled and AsyncDedalus and DedalusRunner)
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._runner: Optional[DedalusRunner] = None
+        self._loop_lock = threading.Lock()
+        if enabled and not self.enabled:
+            logger.warning(
+                'Dedalus Labs SDK not available; semantic question handling is disabled.'
+            )
+
+    # ------------------------------------------------------------------
+    # Life-cycle management
+    # ------------------------------------------------------------------
+    def _ensure_loop(self) -> None:
+        if self._loop and self._loop.is_running():
+            return
+
+        with self._loop_lock:
+            if self._loop and self._loop.is_running():
+                return
+
+            loop = asyncio.new_event_loop()
+
+            def run_loop() -> None:
+                asyncio.set_event_loop(loop)
+                loop.run_forever()
+
+            thread = threading.Thread(target=run_loop, name='DedalusLoop', daemon=True)
+            thread.start()
+            self._loop = loop
+            self._thread = thread
+
+    async def _ensure_runner(self) -> DedalusRunner:
+        if self._runner is None:
+            if not AsyncDedalus or not DedalusRunner:
+                raise RuntimeError('Dedalus Labs SDK is not installed.')
+            client = AsyncDedalus()
+            self._runner = DedalusRunner(client)
+        return self._runner
+
+    # ------------------------------------------------------------------
+    # High level helpers
+    # ------------------------------------------------------------------
+    def should_route(self, messages: List[Dict[str, Any]], tool_calls: Iterable[Any]) -> bool:
+        if not self.enabled:
+            return False
+
+        if any(True for _ in tool_calls):
+            return False
+
+        latest_text = self._latest_user_text(messages)
+        if not latest_text:
+            return False
+
+        lowered = latest_text.lower()
+
+        excluded_keywords = {
+            'highlight', 'rotate', 'rotation', 'view', 'angle', 'turn', 'zoom', 'orient',
+            'orientation', 'camera', 'focus on', 'show me', 'display the model', 'spin',
+            'auto-rotate', 'auto rotate', 'clear highlight', 'reset view', 'annotation',
+            'annotate', 'color', 'colour'
+        }
+
+        if any(keyword in lowered for keyword in excluded_keywords):
+            return False
+
+        question_triggers = ('?', 'what ', 'how ', 'why ', 'explain ', 'describe ', 'tell me ', 'compare ')
+        medical_markers = (
+            'function', 'role', 'purpose', 'medical', 'clinical', 'symptom', 'disease',
+            'pathology', 'treatment', 'diagnosis', 'anatomy', 'physiology', 'surgical',
+            'injury', 'condition', 'blood', 'nerve', 'organ', 'system'
+        )
+
+        if any(lowered.startswith(trigger) for trigger in question_triggers):
+            return True
+        if '?' in lowered:
+            return True
+        if len(lowered.split()) >= 6 and any(marker in lowered for marker in medical_markers):
+            return True
+
+        return False
+
+    def build_prompt(self, messages: List[Dict[str, Any]]) -> str:
+        guidance = (
+            "You are a medically trained tutor supporting the Dedalus Labs anatomy explorer. "
+            "Answer the learner's latest question with clinically accurate, concise explanations. "
+            "Use clear, student-friendly language and cite relevant anatomical functions when useful."
+        )
+        conversation_lines: List[str] = []
+        for message in messages:
+            role = message.get('role')
+            text = (message.get('text') or '').strip()
+            if not text or role not in {'user', 'assistant'}:
+                continue
+            prefix = 'Learner' if role == 'user' else 'Guide'
+            conversation_lines.append(f"{prefix}: {text}")
+
+        transcript = '\n'.join(conversation_lines)
+        prompt = (
+            f"{guidance}\n\n"
+            f"Conversation so far:\n{transcript}\n\n"
+            "Provide a focused response to the learner's most recent message."
+        )
+        return prompt
+
+    def ask(self, prompt: str, timeout: float = 45.0) -> Optional[str]:
+        if not self.enabled:
+            return None
+
+        self._ensure_loop()
+        if not self._loop:
+            return None
+
+        async def run_query() -> str:
+            runner = await self._ensure_runner()
+            result = runner.run(input=prompt, model=self.model, stream=True)
+            return await self._consume_result(result)
+
+        future = asyncio.run_coroutine_threadsafe(run_query(), self._loop)
+        try:
+            return future.result(timeout=timeout)
+        except Exception as error:  # pragma: no cover - network failure path
+            logger.exception('Dedalus Labs request failed: %s', error)
+            return None
+
+    # ------------------------------------------------------------------
+    # Stream handling helpers
+    # ------------------------------------------------------------------
+    async def _consume_result(self, result: Any) -> str:
+        fragments: List[str] = []
+
+        if hasattr(result, '__aiter__'):
+            async for event in result:  # type: ignore[assignment]
+                fragments.extend(self._extract_text_fragments(event))
+        elif isinstance(result, Iterable):
+            for event in result:
+                fragments.extend(self._extract_text_fragments(event))
+        else:
+            text = self._coerce_to_text(result)
+            return text
+
+        text = ''.join(fragments).strip()
+        if text:
+            return text
+
+        return self._coerce_to_text(result)
+
+    def _coerce_to_text(self, payload: Any) -> str:
+        if payload is None:
+            return ''
+        if isinstance(payload, str):
+            return payload.strip()
+        if isinstance(payload, dict):
+            fragments = self._extract_text_fragments(payload)
+            return ''.join(fragments).strip()
+        for attribute in ('output_text', 'text', 'message', 'response', 'value'):
+            if hasattr(payload, attribute):
+                value = getattr(payload, attribute)
+                extracted = self._extract_text_fragments(value)
+                if extracted:
+                    return ''.join(extracted).strip()
+                if isinstance(value, str):
+                    return value.strip()
+        return ''
+
+    def _extract_text_fragments(self, payload: Any, key_hint: Optional[str] = None) -> List[str]:
+        if payload is None:
+            return []
+
+        if isinstance(payload, str):
+            if key_hint is None:
+                return [payload]
+            if any(token in key_hint.lower() for token in self._TEXT_KEY_TOKENS):
+                return [payload]
+            return []
+
+        if isinstance(payload, dict):
+            fragments: List[str] = []
+            for key, value in payload.items():
+                lowered = key.lower()
+                next_hint = lowered if any(token in lowered for token in self._TEXT_KEY_TOKENS) else key_hint
+                fragments.extend(self._extract_text_fragments(value, next_hint))
+            return fragments
+
+        if isinstance(payload, (list, tuple, set)):
+            fragments: List[str] = []
+            for item in payload:
+                fragments.extend(self._extract_text_fragments(item, key_hint))
+            return fragments
+
+        if hasattr(payload, '__dict__'):
+            return self._extract_text_fragments(vars(payload), key_hint)
+
+        return []
+
+    @staticmethod
+    def _latest_user_text(messages: List[Dict[str, Any]]) -> str:
+        for message in reversed(messages):
+            if message.get('role') != 'user':
+                continue
+            text = (message.get('text') or '').strip()
+            if text:
+                return text
+        return ''
+
+
+dedalus_service = DedalusService(DEDALUS_ENABLED, DEDALUS_MODEL)
+
+
 def _build_contents(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     contents: List[Dict[str, Any]] = []
     for message in messages:
@@ -261,7 +490,13 @@ def _build_contents(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 @app.get('/api/health')
 def health() -> Any:
-    return jsonify(status='ok', model=GEMINI_MODEL, llm_configured=bool(GEMINI_API_KEY))
+    return jsonify(
+        status='ok',
+        model=GEMINI_MODEL,
+        llm_configured=bool(GEMINI_API_KEY),
+        dedalus_enabled=dedalus_service.enabled,
+        dedalus_model=DEDALUS_MODEL if dedalus_service.enabled else None
+    )
 
 
 @app.get('/api/hello')
@@ -387,6 +622,33 @@ def chat() -> Any:
     record_step('extracting_tool_calls', {'toolCallCount': len(tool_calls)})
 
     reply_text = '\n'.join(fragment.strip() for fragment in reply_text_fragments if fragment.strip())
+    reply_source = 'gemini'
+
+    if dedalus_service.should_route(messages, tool_calls):
+        record_step('dispatching_to_dedalus', {'model': DEDALUS_MODEL}, status='started')
+        dedalus_started = perf_counter()
+        prompt = dedalus_service.build_prompt(messages)
+        dedalus_reply = dedalus_service.ask(prompt)
+        if dedalus_reply:
+            latency_ms = round((perf_counter() - dedalus_started) * 1000, 2)
+            record_step('dispatching_to_dedalus', {
+                'model': DEDALUS_MODEL,
+                'latencyMs': latency_ms
+            }, status='complete')
+            record_step('receiving_dedalus_response', {'latencyMs': latency_ms}, status='complete')
+            reply_text = dedalus_reply.strip()
+            reply_source = 'dedalus'
+        else:
+            record_step(
+                'dispatching_to_dedalus',
+                {'reason': 'dedalus_request_failed'},
+                status='error'
+            )
+            record_step(
+                'receiving_dedalus_response',
+                {'reason': 'dedalus_request_failed'},
+                status='error'
+            )
 
     # Only provide fallback message if there's truly no text AND no tool calls
     if not reply_text:
@@ -399,12 +661,14 @@ def chat() -> Any:
 
     record_step('rendering_reply', {
         'hasText': bool(reply_text),
-        'toolCallCount': len(tool_calls)
+        'toolCallCount': len(tool_calls),
+        'replySource': reply_source
     })
 
     return jsonify({
         'reply': reply_text,
         'toolCalls': tool_calls,
+        'replySource': reply_source,
         'raw': {
             'finishReason': top_candidate.get('finishReason'),
             'safetyRatings': top_candidate.get('safetyRatings')

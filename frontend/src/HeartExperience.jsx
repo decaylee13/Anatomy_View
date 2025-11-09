@@ -433,16 +433,17 @@ function HeartExperience() {
         setMessages((previous) => {
           const updated = [...previous];
           const assistantIndex = updated.findIndex((message) => message.status === 'loading');
-          if (assistantIndex !== -1) {
-            updated[assistantIndex] = {
-              ...updated[assistantIndex],
-              text: payload.reply || '',
-              status: 'complete',
-              toolCalls,
-              toolResults: [],
-              highlightSummaries: []
-            };
-          }
+            if (assistantIndex !== -1) {
+              updated[assistantIndex] = {
+                ...updated[assistantIndex],
+                text: payload.reply || '',
+                status: 'complete',
+                replySource: payload.replySource || 'gemini',
+                toolCalls,
+                toolResults: [],
+                highlightSummaries: []
+              };
+            }
           return updated;
         });
 
