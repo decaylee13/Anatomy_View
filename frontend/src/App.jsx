@@ -56,29 +56,26 @@ function CanvasLoader() {
   );
 }
 
-function RegionHighlight({ regionKey, detail }) {
-  if (!regionKey) return null;
-  const config = HEART_REGIONS[regionKey];
-  if (!config) return null;
+function RegionHighlight({ highlight }) {
+  if (!highlight?.key) return null;
+  const config = HEART_REGIONS[highlight.key];
+  const color = highlight.color ?? config?.color;
+  const position = highlight.position ?? config?.position;
+
+  if (!config || !color || !position) return null;
 
   return (
-    <group position={config.position}>
+    <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.07, 24, 24]} />
+        <sphereGeometry args={[0.08, 32, 32]} />
         <meshStandardMaterial
-          color={config.color}
-          emissive={config.color}
-          emissiveIntensity={1.4}
+          color={color}
+          emissive={color}
+          emissiveIntensity={1.8}
           transparent
-          opacity={0.85}
+          opacity={0.75}
         />
       </mesh>
-      <Html center distanceFactor={8}>
-        <div className="max-w-[14rem] rounded-2xl border border-white/20 bg-slate-900/85 px-4 py-3 text-xs text-slate-100 shadow-lg backdrop-blur">
-          <p className="text-sm font-semibold text-white">{config.label}</p>
-          {detail ? <p className="mt-1 leading-snug text-slate-200/80">{detail}</p> : null}
-        </div>
-      </Html>
     </group>
   );
 }
@@ -140,7 +137,7 @@ function HeartModel({ highlightRegion, autoRotate }) {
   return (
     <group ref={groupRef}>
       {heart ? <primitive object={heart} /> : null}
-      <RegionHighlight regionKey={highlightRegion?.key} detail={highlightRegion?.detail} />
+      <RegionHighlight highlight={highlightRegion} />
     </group>
   );
 }
@@ -243,6 +240,29 @@ function ChatSidebar({ isOpen, onClose, messages, onSubmit, isBusy }) {
               <p className="whitespace-pre-line">{message.text}</p>
               {message.status === 'loading' ? (
                 <p className="mt-2 text-xs text-white/60">Connecting to Gemini…</p>
+              ) : null}
+              {message.highlightSummaries?.length ? (
+                <div className="mt-3 space-y-2 rounded-xl border border-white/20 bg-white/5 p-3 text-xs text-white/80">
+                  <p className="font-semibold uppercase tracking-wide text-white/60">Highlighted regions</p>
+                  <ul className="space-y-2">
+                    {message.highlightSummaries.map((highlight, highlightIndex) => (
+                      <li key={`${highlight.regionLabel}-${highlightIndex}`} className="flex gap-3">
+                        <span
+                          className="mt-0.5 h-3 w-3 flex-shrink-0 rounded-full border border-white/40"
+                          style={{ backgroundColor: highlight.color }}
+                          aria-hidden="true"
+                        />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-white">{highlight.regionLabel}</p>
+                          {highlight.comment ? (
+                            <p className="leading-snug text-white/80">{highlight.comment}</p>
+                          ) : null}
+                          <p className="text-[10px] uppercase tracking-wide text-white/60">{highlight.color}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
               {message.toolCalls?.length ? (
                 <div className="mt-3 space-y-2 rounded-xl border border-white/20 bg-white/10 p-3 text-xs text-white/80">
@@ -402,9 +422,24 @@ function App() {
               });
               return;
             }
+            const hexColorRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+            const colorInput = typeof args.color === 'string' ? args.color.trim() : '';
+            const highlightColor = hexColorRegex.test(colorInput) ? colorInput : resolved.data.color;
+            const rawComment =
+              typeof args.comment === 'string'
+                ? args.comment
+                : typeof args.detail === 'string'
+                ? args.detail
+                : '';
+            const highlightComment = rawComment.trim();
             dispatch({
               type: 'SET_HIGHLIGHT',
-              payload: { key: resolved.key, detail: args.detail ?? '' }
+              payload: {
+                key: resolved.key,
+                color: highlightColor,
+                label: resolved.data.label,
+                comment: highlightComment
+              }
             });
             results.push({
               name,
@@ -413,8 +448,10 @@ function App() {
               response: {
                 status: 'success',
                 detail: {
-                  region: resolved.data.label,
-                  ...(args.detail ? { note: args.detail } : {})
+                  regionKey: resolved.key,
+                  regionLabel: resolved.data.label,
+                  color: highlightColor,
+                  ...(highlightComment ? { comment: highlightComment } : {})
                 }
               }
             });
@@ -534,7 +571,8 @@ function App() {
               text: payload.reply || 'Gemini did not provide a reply.',
               status: 'complete',
               toolCalls,
-              toolResults: []
+              toolResults: [],
+              highlightSummaries: []
             };
           }
           return updated;
@@ -559,9 +597,25 @@ function App() {
               }
             }
             if (assistantIndex !== -1) {
+              const highlightSummaries = executionResults
+                .filter(
+                  (result) =>
+                    result.name === 'highlight_heart_region' &&
+                    result.status === 'success' &&
+                    result.response?.detail?.color
+                )
+                .map((result) => ({
+                  color: result.response.detail.color,
+                  regionLabel: result.response.detail.regionLabel ?? result.response.detail.region ?? 'Highlighted region',
+                  comment: result.response.detail.comment ?? ''
+                }));
+              const otherToolResults = executionResults.filter(
+                (result) => result.name !== 'highlight_heart_region'
+              );
               updated[assistantIndex] = {
                 ...updated[assistantIndex],
-                toolResults: executionResults
+                toolResults: otherToolResults,
+                highlightSummaries
               };
             }
             return updated;
