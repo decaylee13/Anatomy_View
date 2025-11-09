@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Dict, List
 
 import requests
@@ -20,6 +22,15 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'models/gemini-1.5-flash-latest')
 GEMINI_API_URL = f'https://generativelanguage.googleapis.com/v1beta/{GEMINI_MODEL}:generateContent'
+
+AGENT_STEP_LABELS = {
+    'reading_prompt': 'Reading user prompt',
+    'augmenting_context': 'Augmenting context',
+    'dispatching_to_gemini': 'Dispatching to Gemini',
+    'receiving_gemini_response': 'Receiving response from Gemini',
+    'extracting_tool_calls': 'Extracting tool calls',
+    'rendering_reply': 'Rendering final reply'
+}
 
 SYSTEM_PROMPT = """You are the Dedalus Labs anatomy guide coordinating with Three.js 3D anatomical models.
 Always speak to the learner in plain English, providing educational insights and explanations
@@ -257,18 +268,34 @@ def hello_world() -> Any:
 def chat() -> Any:
     payload = request.get_json(silent=True) or {}
     messages = payload.get('messages', [])
+    steps: List[Dict[str, Any]] = []
+
+    def record_step(step_id: str, detail: Dict[str, Any] | None = None, status: str = 'complete') -> None:
+        label = AGENT_STEP_LABELS.get(step_id, step_id.replace('_', ' ').title())
+        steps.append({
+            'id': step_id,
+            'label': label,
+            'status': status,
+            'detail': detail,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
 
     if not GEMINI_API_KEY:
         logger.warning('Gemini API key not configured; returning fallback response.')
+        record_step('reading_prompt', {'messageCount': len(messages)}, status='error')
+        record_step('rendering_reply', {'reason': 'missing_api_key'}, status='error')
         return jsonify({
             'reply': (
                 "The Dedalus Labs assistant is not yet connected to Gemini. "
                 "Configure the GEMINI_API_KEY environment variable on the server to enable live responses."
             ),
-            'toolCalls': []
+            'toolCalls': [],
+            'agentSteps': steps
         }), 503
 
     contents = _build_contents(messages)
+    record_step('reading_prompt', {'messageCount': len(messages)})
+    record_step('augmenting_context', {'contentCount': len(contents)})
 
     request_body: Dict[str, Any] = {
         'system_instruction': {
@@ -283,6 +310,9 @@ def chat() -> Any:
         }
     }
 
+    record_step('dispatching_to_gemini', {'model': GEMINI_MODEL}, status='started')
+    dispatch_started = perf_counter()
+
     try:
         response = requests.post(
             GEMINI_API_URL,
@@ -291,15 +321,34 @@ def chat() -> Any:
             timeout=30
         )
         response.raise_for_status()
+        dispatch_duration_ms = round((perf_counter() - dispatch_started) * 1000, 2)
+        record_step(
+            'dispatching_to_gemini',
+            {'model': GEMINI_MODEL, 'latencyMs': dispatch_duration_ms, 'statusCode': response.status_code},
+            status='complete'
+        )
+        record_step(
+            'receiving_gemini_response',
+            {'statusCode': response.status_code},
+            status='complete'
+        )
     except requests.RequestException as error:
         logger.exception('Gemini request failed: %s', error)
-        return jsonify({'error': 'Failed to reach Gemini LLM API.'}), 502
+        record_step(
+            'dispatching_to_gemini',
+            {'reason': 'request_exception', 'message': str(error)},
+            status='error'
+        )
+        record_step('rendering_reply', {'reason': 'gemini_request_failed'}, status='error')
+        return jsonify({'error': 'Failed to reach Gemini LLM API.', 'agentSteps': steps}), 502
 
     data = response.json()
     candidates: List[Dict[str, Any]] = data.get('candidates', [])
     if not candidates:
         logger.error('Gemini response missing candidates: %s', data)
-        return jsonify({'error': 'Gemini returned no candidates.'}), 502
+        record_step('extracting_tool_calls', {'toolCallCount': 0}, status='error')
+        record_step('rendering_reply', {'reason': 'no_candidates'}, status='error')
+        return jsonify({'error': 'Gemini returned no candidates.', 'agentSteps': steps}), 502
 
     top_candidate = candidates[0]
     content = top_candidate.get('content', {})
@@ -330,6 +379,8 @@ def chat() -> Any:
                 'arguments': parsed_args
             })
 
+    record_step('extracting_tool_calls', {'toolCallCount': len(tool_calls)})
+
     reply_text = '\n'.join(fragment.strip() for fragment in reply_text_fragments if fragment.strip())
 
     # Only provide fallback message if there's truly no text AND no tool calls
@@ -341,13 +392,19 @@ def chat() -> Any:
             # If neither text nor tools, something went wrong
             reply_text = 'I am processing your request.'
 
+    record_step('rendering_reply', {
+        'hasText': bool(reply_text),
+        'toolCallCount': len(tool_calls)
+    })
+
     return jsonify({
         'reply': reply_text,
         'toolCalls': tool_calls,
         'raw': {
             'finishReason': top_candidate.get('finishReason'),
             'safetyRatings': top_candidate.get('safetyRatings')
-        }
+        },
+        'agentSteps': steps
     })
 
 

@@ -105,9 +105,9 @@ export default function Home() {
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-200/90" id="chapters-heading">
               Chapters
             </p>
-            <h2 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Choose an interactive chapter</h2>
+            <h2 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Choose an interactive model</h2>
             <p className="max-w-2xl text-sm text-slate-100/80">
-              Each chapter pairs an interactive 3D model with stepwise reasoning, clinical context, and quick recall
+              Each model pairs an interactive 3D model with stepwise reasoning, clinical context, and quick recall
               checks—so you can see it, understand it, and remember it.
             </p>
           </Reveal>

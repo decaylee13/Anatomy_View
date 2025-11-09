@@ -7,6 +7,7 @@ import { Box3, Color, SRGBColorSpace, Vector3 } from 'three';
 import ChatSidebar from './components/ChatSidebar.jsx';
 import CanvasLoader from './components/CanvasLoader.jsx';
 import CameraController from './components/CameraController.jsx';
+import useAgentProcessTrace from './hooks/useAgentProcessTrace.js';
 import { HEART_REGIONS, resolveHeartRegionName } from './heartRegions.js';
 
 const initialPrompts = [
@@ -102,22 +103,22 @@ function HeartModel({ highlightRegion }) {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        
+
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach((material) => {
           if (!material) return;
-          
+
           // Store original color if not already stored
           if (material.color && !originalColorsRef.current.has(material.uuid)) {
             originalColorsRef.current.set(material.uuid, material.color.clone());
           }
-          
+
           // Map material name to material reference
           if (material.name) {
             materialMapRef.current.set(material.name.toLowerCase(), material);
             console.log('Heart material found:', material.name);
           }
-          
+
           // Set up textures
           ['map', 'emissiveMap'].forEach((mapKey) => {
             const texture = material[mapKey];
@@ -158,7 +159,7 @@ function HeartModel({ highlightRegion }) {
     if (highlightRegion?.key) {
       const regionConfig = HEART_REGIONS[highlightRegion.key];
       const highlightColor = new Color(highlightRegion.color || regionConfig?.color || '#00ff00');
-      
+
       const materialKeys = Array.from(materialMapRef.current.keys());
       let matchedMaterial = null;
 
@@ -169,9 +170,9 @@ function HeartModel({ highlightRegion }) {
           for (const materialKey of materialKeys) {
             const normalizedMaterialKey = materialKey.toLowerCase().replace(/[\s_-]/g, '');
             const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
-            
-            if (normalizedMaterialKey.includes(normalizedPatternClean) || 
-                normalizedPatternClean.includes(normalizedMaterialKey)) {
+
+            if (normalizedMaterialKey.includes(normalizedPatternClean) ||
+              normalizedPatternClean.includes(normalizedMaterialKey)) {
               matchedMaterial = materialMapRef.current.get(materialKey);
               console.log(`Matched region "${highlightRegion.key}" to material "${materialKey}" using pattern "${pattern}"`);
               break;
@@ -212,6 +213,7 @@ function HeartModel({ highlightRegion }) {
 }
 
 function HeartExperience() {
+  const { steps: agentProcessSteps, startTrace, updateFromServer, markFinalStatus } = useAgentProcessTrace();
   const [messages, setMessages] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -396,6 +398,7 @@ function HeartExperience() {
     async (text) => {
       if (isSending) return;
 
+      startTrace();
       const conversation = [...messages, { role: 'user', text }];
       setMessages((previous) => [
         ...previous,
@@ -418,6 +421,9 @@ function HeartExperience() {
         });
 
         const payload = await response.json();
+        if (Array.isArray(payload.agentSteps) && payload.agentSteps.length) {
+          updateFromServer(payload.agentSteps);
+        }
 
         if (!response.ok) {
           throw new Error(payload.error || payload.reply || 'Assistant request failed.');
@@ -484,6 +490,11 @@ function HeartExperience() {
             return updated;
           });
         }
+
+        markFinalStatus('complete', {
+          toolCallCount: toolCalls.length,
+          replyLength: (payload.reply || '').length
+        });
       } catch (error) {
         console.error(error);
         setMessages((previous) => {
@@ -498,12 +509,15 @@ function HeartExperience() {
           }
           return updated;
         });
+        markFinalStatus('error', {
+          message: error instanceof Error ? error.message : 'Assistant connection failed.'
+        });
         setStatusMessage(error instanceof Error ? error.message : 'Assistant connection failed.');
       } finally {
         setIsSending(false);
       }
     },
-    [applyToolCalls, apiBaseUrl, isSending, messages]
+    [applyToolCalls, apiBaseUrl, isSending, markFinalStatus, messages, startTrace, updateFromServer]
   );
 
   return (
@@ -578,6 +592,7 @@ function HeartExperience() {
         title="Heart Assistant"
         subtitle="Dedalus Labs link to Gemini for guided exploration."
         placeholder="Ask the assistant about the heart…"
+        processTrace={agentProcessSteps}
       />
     </div>
   );

@@ -9,7 +9,8 @@ function ChatSidebar({
   initialPrompts = [],
   title = 'Anatomy Assistant',
   subtitle = 'Guided exploration powered by Dedalus Labs.',
-  placeholder = 'Ask the assistant…'
+  placeholder = 'Ask the assistant…',
+  processTrace = []
 }) {
   const [pendingMessage, setPendingMessage] = useState('');
 
@@ -24,9 +25,8 @@ function ChatSidebar({
 
   return (
     <aside
-      className={`relative flex h-full flex-col overflow-hidden bg-slate-900/95 text-slate-100 shadow-2xl transition-[transform,width] duration-300 ease-in-out ${
-        isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-      }`}
+      className={`relative flex h-full flex-col overflow-hidden bg-slate-900/95 text-slate-100 shadow-2xl transition-[transform,width] duration-300 ease-in-out ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
       style={{ width: isOpen ? '26rem' : '0rem', transform: `translateX(${isOpen ? '0%' : '100%'})` }}
     >
       <button
@@ -52,6 +52,41 @@ function ChatSidebar({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        {processTrace.length ? (
+          <div className="space-y-3 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-xs text-slate-100 shadow-inner">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-sky-200">Agent process</p>
+            <ul className="space-y-2">
+              {processTrace.map((step) => {
+                const status = step.status || 'complete';
+                const indicatorClass =
+                  status === 'error'
+                    ? 'border-rose-400/80 bg-rose-500/70'
+                    : status === 'in-progress'
+                      ? 'border-sky-300/70 bg-sky-300/40 animate-pulse'
+                      : 'border-emerald-300/70 bg-emerald-300/60';
+                let detailLine = null;
+                if (typeof step.detail === 'string') {
+                  detailLine = step.detail;
+                } else if (step.detail && typeof step.detail === 'object') {
+                  detailLine = Object.entries(step.detail)
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(' · ');
+                }
+
+                return (
+                  <li key={step.id} className="flex items-start gap-3 transition-all duration-200 ease-out">
+                    <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full border ${indicatorClass}`} aria-hidden="true" />
+                    <div className="space-y-1">
+                      <p className="font-medium text-slate-50">{step.label}</p>
+                      {detailLine ? <p className="text-[11px] text-slate-200/70">{detailLine}</p> : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
         {messages.length === 0 ? (
           <div className="space-y-3 text-sm text-white/70">
             <p>Start the conversation by trying one of these prompts:</p>
@@ -73,9 +108,8 @@ function ChatSidebar({
           messages.map((message, index) => (
             <div
               key={`${message.role}-${index}`}
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${
-                message.role === 'user' ? 'ml-auto bg-sky-500/30 text-sky-50' : 'mr-auto bg-emerald-500/30 text-emerald-50'
-              }`}
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg ${message.role === 'user' ? 'ml-auto bg-sky-500/30 text-sky-50' : 'mr-auto bg-emerald-500/30 text-emerald-50'
+                }`}
             >
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-white/60">
                 {message.role === 'user' ? 'You' : 'Assistant'}
