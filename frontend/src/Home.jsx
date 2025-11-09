@@ -12,6 +12,12 @@ const models = [
     description: 'Study the adult brain including the brain stem with the same conversational assistant experience.',
     href: '/brain',
     accent: 'from-indigo-500/80 to-indigo-600/60'
+  },
+  {
+    name: 'Skeleton Anatomy',
+    description: 'Examine a full-body human skeleton model with guided exploration from the assistant.',
+    href: '/skeleton',
+    accent: 'from-amber-500/80 to-amber-600/60'
   }
 ];
 
@@ -33,6 +39,7 @@ function Home() {
             <ul className="mt-2 space-y-1 text-white/60">
               <li>✔ Heart model with regional highlighting</li>
               <li>✔ Brain model with brain stem detail</li>
+              <li>✔ Skeleton model with articulated full-body view</li>
             </ul>
           </div>
         </div>
