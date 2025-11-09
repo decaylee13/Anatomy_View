@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState
 import { Link } from 'react-router-dom';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Environment, OrbitControls } from '@react-three/drei';
-import { Box3, Group, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, Group, SRGBColorSpace, Vector3 } from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 import ChatSidebar from './components/ChatSidebar.jsx';
@@ -17,29 +17,9 @@ const initialPrompts = [
 
 const initialControllerState = {
   view: { azimuth: 25, elevation: 15, distance: 4 },
-  annotation: null
+  annotation: null,
+  highlightRegion: null
 };
-
-const SKELETON_SUBTOOLS = [
-  'SubTool-0-12960644',
-  'SubTool-1-5430089',
-  'SubTool-2-5430089',
-  'SubTool-3-2401016',
-  'SubTool-4-3028232',
-  'SubTool-5-2408458',
-  'SubTool-6-2408458',
-  'SubTool-7-5430089',
-  'SubTool-8-5430089',
-  'SubTool-9-5430089',
-  'SubTool-10-2493069',
-  'SubTool-11-2493069',
-  'SubTool-12-7838689',
-  'SubTool-13-7838689',
-  'SubTool-14-7838689',
-  'SubTool-15-7838689',
-  'SubTool-16-5430089',
-  'SubTool-17-5430089'
-];
 
 function controllerReducer(state, action) {
   switch (action.type) {
@@ -58,6 +38,8 @@ function controllerReducer(state, action) {
     }
     case 'SET_ANNOTATION':
       return { ...state, annotation: action.payload };
+    case 'HIGHLIGHT_REGION':
+      return { ...state, highlightRegion: action.payload };
     default:
       return state;
   }
@@ -77,37 +59,110 @@ function parseToolArguments(args) {
   return args;
 }
 
-function SkeletonPart({ name }) {
-  const obj = useLoader(OBJLoader, `/human-skeleton-study/source/archive/${name}.OBJ`);
+function SkeletonModel({ highlightRegion }) {
+  const obj = useLoader(OBJLoader, '/newskeleton.obj');
+  const skeletonGroup = useRef();
+  const meshMapRef = useRef(new Map());
+  const originalColorsRef = useRef(new Map());
 
   useEffect(() => {
     if (!obj) return;
 
     obj.traverse((child) => {
-      if (!child.isMesh) return;
+      console.log(`Skeleton object found - Type: ${child.type}, Name: "${child.name}"`);
 
-      child.castShadow = true;
-      child.receiveShadow = true;
+      if (child.isMesh) {
+        const meshName = child.name.toLowerCase();
+        meshMapRef.current.set(meshName, child);
 
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
-      materials.forEach((material) => {
-        if (!material) return;
-        ['map', 'emissiveMap'].forEach((mapKey) => {
-          const texture = material[mapKey];
-          if (texture && 'colorSpace' in texture) {
-            texture.colorSpace = SRGBColorSpace;
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+          if (!material) return;
+
+          // Store original colors
+          if (!originalColorsRef.current.has(child.uuid)) {
+            originalColorsRef.current.set(child.uuid, {
+              color: material.color ? material.color.clone() : new Color(0xffffff),
+              emissive: material.emissive ? material.emissive.clone() : new Color(0x000000)
+            });
+          }
+
+          ['map', 'emissiveMap'].forEach((mapKey) => {
+            const texture = material[mapKey];
+            if (texture && 'colorSpace' in texture) {
+              texture.colorSpace = SRGBColorSpace;
+            }
+          });
+          material.needsUpdate = true;
+        });
+      }
+    });
+
+    console.log('Available skeleton meshes:', Array.from(meshMapRef.current.keys()));
+  }, [obj]);
+
+  // Handle highlighting
+  useEffect(() => {
+    if (!highlightRegion) {
+      // Reset all colors
+      meshMapRef.current.forEach((mesh) => {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((material) => {
+          if (!material) return;
+          const originalColors = originalColorsRef.current.get(mesh.uuid);
+          if (originalColors) {
+            material.color.copy(originalColors.color);
+            material.emissive.copy(originalColors.emissive);
+            material.needsUpdate = true;
           }
         });
+      });
+      return;
+    }
+
+    const { meshPatterns, color } = highlightRegion;
+    const targetColor = new Color(color);
+    const meshesToHighlight = [];
+
+    meshPatterns.forEach((pattern) => {
+      const lowerPattern = pattern.toLowerCase();
+      meshMapRef.current.forEach((mesh, meshName) => {
+        if (meshName.includes(lowerPattern)) {
+          meshesToHighlight.push(mesh);
+        }
+      });
+    });
+
+    console.log('Highlighting meshes:', meshesToHighlight.map(m => m.name));
+
+    // Reset all first
+    meshMapRef.current.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((material) => {
+        if (!material) return;
+        const originalColors = originalColorsRef.current.get(mesh.uuid);
+        if (originalColors) {
+          material.color.copy(originalColors.color);
+          material.emissive.copy(originalColors.emissive);
+          material.needsUpdate = true;
+        }
+      });
+    });
+
+    // Then highlight matched meshes
+    meshesToHighlight.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((material) => {
+        if (!material) return;
+        material.color.copy(targetColor);
+        material.emissive.copy(targetColor);
         material.needsUpdate = true;
       });
     });
-  }, [obj]);
-
-  return obj ? <primitive object={obj} /> : null;
-}
-
-function SkeletonModel() {
-  const skeletonGroup = useRef();
+  }, [highlightRegion]);
 
   const { scale, position } = useMemo(() => {
     if (!skeletonGroup.current) {
@@ -130,9 +185,7 @@ function SkeletonModel() {
 
   return (
     <group ref={skeletonGroup} scale={scale} position={[position.x, position.y, position.z]}>
-      {SKELETON_SUBTOOLS.map((name) => (
-        <SkeletonPart key={name} name={name} />
-      ))}
+      {obj ? <primitive object={obj} /> : null}
     </group>
   );
 }
@@ -225,17 +278,66 @@ function SkeletonExperience() {
           }
           case 'clear_highlighted_region': {
             dispatch({ type: 'SET_ANNOTATION', payload: null });
+            dispatch({ type: 'HIGHLIGHT_REGION', payload: null });
             results.push({
               name,
               status: 'success',
-              message: 'Cleared any active annotations for the skeleton.',
-              response: { status: 'success', detail: 'Annotations cleared.' }
+              message: 'Cleared any active annotations and highlights for the skeleton.',
+              response: { status: 'success', detail: 'Annotations and highlights cleared.' }
             });
             break;
           }
-          case 'highlight_heart_region':
           case 'highlight_skeleton_region': {
-            const detail = 'Region highlighting is not available for the skeleton model yet.';
+            if (!args.region) {
+              const detail = 'Missing required parameter: region.';
+              setStatusMessage(detail);
+              results.push({
+                name,
+                status: 'error',
+                message: detail,
+                response: { status: 'error', detail }
+              });
+              return;
+            }
+
+            // Import will be added at top after we create skeletonRegions.js
+            const regionKey = args.region.toLowerCase();
+            const regionConfig = null; // Will be replaced with SKELETON_REGIONS[regionKey]
+            
+            if (!regionConfig) {
+              const detail = `Unknown skeleton region: "${args.region}".`;
+              setStatusMessage(detail);
+              results.push({
+                name,
+                status: 'error',
+                message: detail,
+                response: { status: 'error', detail }
+              });
+              return;
+            }
+
+            const highlightColor = args.color || regionConfig.color;
+            dispatch({
+              type: 'HIGHLIGHT_REGION',
+              payload: {
+                meshPatterns: regionConfig.meshPatterns,
+                color: highlightColor
+              }
+            });
+
+            results.push({
+              name,
+              status: 'success',
+              message: `Highlighting ${regionConfig.label} in ${highlightColor}.`,
+              response: {
+                status: 'success',
+                detail: { region: args.region, color: highlightColor }
+              }
+            });
+            break;
+          }
+          case 'highlight_heart_region': {
+            const detail = 'Heart highlighting is not available in skeleton view.';
             setStatusMessage(detail);
             results.push({
               name,
@@ -387,7 +489,7 @@ function SkeletonExperience() {
             shadow-mapSize={1024}
           />
           <Suspense fallback={<CanvasLoader label="Loading skeleton model…" />}>
-            <SkeletonModel />
+            <SkeletonModel highlightRegion={controllerState.highlightRegion} />
             <Environment preset="sunset" />
           </Suspense>
           <OrbitControls ref={controlsRef} enablePan={false} maxDistance={7} minDistance={2.2} target={[0, 0.4, 0]} />

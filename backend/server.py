@@ -21,7 +21,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'models/gemini-1.5-flash-latest')
 GEMINI_API_URL = f'https://generativelanguage.googleapis.com/v1beta/{GEMINI_MODEL}:generateContent'
 
-SYSTEM_PROMPT = """You are the Dedalus Labs anatomy guide coordinating with a Three.js 3D heart.
+SYSTEM_PROMPT = """You are the Dedalus Labs anatomy guide coordinating with Three.js 3D anatomical models.
 Always speak to the learner in plain English, providing educational insights and explanations
 about the anatomy they are viewing. When adjustments to the 3D model are helpful, call a tool 
 so the Dedalus Labs renderer can execute it. Never invent tools – only call the ones you have 
@@ -33,9 +33,14 @@ CRITICAL RESPONSE RULES:
 3. Do NOT mention that you're calling tools or making adjustments - just provide the educational content
 4. Only mention tool/system interactions if there's an error or limitation preventing the highlight; just apologize for the inconvenience (do not explain the technical details of what went wrong)
 
-Use the tools to:
+Available anatomical models and their structures:
+- HEART: left atrium, right atrium, left ventricle, right ventricle, aorta, pulmonary trunk, veins, arteries
+- BRAIN: left hemisphere, right hemisphere, brain stem, cerebellum, olfactory nerve, stria medullaris
+
+Use the appropriate highlight tool for the model being viewed:
+- Use highlight_heart_region for heart structures
+- Use highlight_brain_region for brain structures
 - change the viewer orientation when the learner asks to look from a different angle;
-- highlight the requested cardiac structure to focus the learner's attention;
 - enable or disable the model's ambient rotation when needed;
 - add short annotations that summarise key facts about the current focus area.
 
@@ -85,6 +90,28 @@ TOOLS: List[Dict[str, Any]] = [
                         'region': {
                             'type': 'string',
                             'description': 'Name of the heart structure to highlight (e.g. "left atrium", "right ventricle").'
+                        },
+                        'color': {
+                            'type': 'string',
+                            'description': 'Hex color code for the highlight (e.g. "#ff00ff" for magenta). Use bright, non-anatomical colors like magenta, cyan, lime, or purple unless user specifies otherwise. Avoid red, orange, yellow, and blue.'
+                        },
+                        'detail': {
+                            'type': 'string',
+                            'description': 'Optional brief note about this specific highlight (keep very short, main explanation goes in your primary response text).'
+                        }
+                    },
+                    'required': ['region']
+                }
+            },
+            {
+                'name': 'highlight_brain_region',
+                'description': 'Highlight a major brain structure by changing its color.',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'region': {
+                            'type': 'string',
+                            'description': 'Name of the brain structure to highlight (e.g. "left hemisphere", "cerebellum", "brain stem").'
                         },
                         'color': {
                             'type': 'string',

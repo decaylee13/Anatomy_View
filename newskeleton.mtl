@@ -1,0 +1,182 @@
+# Blender 4.5.4 LTS MTL File: 'None'
+# www.blender.org
+
+newmtl defaultMat
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-0-12960644.jpg
+
+newmtl defaultMat.001
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-1-5430089.jpg
+
+newmtl defaultMat.002
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-2-5430089.jpg
+
+newmtl defaultMat.003
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-3-2401016.jpg
+
+newmtl defaultMat.004
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-4-3028232.jpg
+
+newmtl defaultMat.005
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-5-2408458.jpg
+
+newmtl defaultMat.006
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-6-2408458.jpg
+
+newmtl defaultMat.007
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-7-5430089.jpg
+
+newmtl defaultMat.008
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-8-5430089.jpg
+
+newmtl defaultMat.009
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-9-5430089.jpg
+
+newmtl defaultMat.010
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-10-2493069.jpg
+
+newmtl defaultMat.011
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-11-2493069.jpg
+
+newmtl defaultMat.012
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-12-7838689.jpg
+
+newmtl defaultMat.013
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-13-7838689.jpg
+
+newmtl defaultMat.014
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-14-7838689.jpg
+
+newmtl defaultMat.015
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-15-7838689.jpg
+
+newmtl defaultMat.016
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-16-5430089.jpg
+
+newmtl defaultMat.017
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd K:/Coding Projects/hpfall25/data/valid-segmentations/human-skeleton-study/source/archive/SubTool-17-5430089.jpg
