@@ -185,7 +185,6 @@ function SkeletonModel({ highlightRegion }) {
 
 function SkeletonExperience() {
   const [messages, setMessages] = useState([]);
-  const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [controllerState, dispatch] = useReducer(controllerReducer, initialControllerState);
@@ -228,9 +227,8 @@ function SkeletonExperience() {
             results.push({
               name,
               status: 'success',
-              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${
-                distance ? `, distance ${distance.toFixed(2)}` : ''
-              }.`,
+              message: `Adjusted camera to azimuth ${azimuth.toFixed(1)}°, elevation ${elevation.toFixed(1)}°${distance ? `, distance ${distance.toFixed(2)}` : ''
+                }.`,
               response: {
                 status: 'success',
                 detail: {
@@ -294,7 +292,7 @@ function SkeletonExperience() {
             }
 
             const regionConfig = findRegionByName(args.region);
-            
+
             if (!regionConfig) {
               const detail = `Unknown skeleton region: "${args.region}".`;
               setStatusMessage(detail);
@@ -506,16 +504,6 @@ function SkeletonExperience() {
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
 
-        {!isChatOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatOpen(true)}
-            className="pointer-events-auto absolute right-6 top-6 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-400"
-          >
-            Open Chat
-          </button>
-        )}
-
         <div className="pointer-events-none absolute left-8 top-8 max-w-md text-white/80 space-y-3">
           <Link
             to="/"
@@ -532,13 +520,6 @@ function SkeletonExperience() {
           </div>
         </div>
 
-        {controllerState.annotation ? (
-          <div className="pointer-events-auto absolute left-8 bottom-8 max-w-sm rounded-2xl border border-white/10 bg-slate-900/80 p-4 text-white/80 shadow-xl">
-            <h3 className="text-sm font-semibold text-white">{controllerState.annotation.title}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-white/70">{controllerState.annotation.description}</p>
-          </div>
-        ) : null}
-
         {statusMessage ? (
           <div className="pointer-events-auto absolute left-1/2 top-6 -translate-x-1/2 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2 text-xs font-medium text-white/80 shadow-xl">
             {statusMessage}
@@ -547,8 +528,6 @@ function SkeletonExperience() {
       </div>
 
       <ChatSidebar
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen((previous) => !previous)}
         messages={messages}
         onSubmit={handleSendMessage}
         isBusy={isSending}
@@ -556,6 +535,7 @@ function SkeletonExperience() {
         title="Skeleton Assistant"
         subtitle="Dedalus Labs link to Gemini for guided exploration."
         placeholder="Ask the assistant about the skeleton…"
+        annotation={controllerState.annotation}
       />
     </div>
   );

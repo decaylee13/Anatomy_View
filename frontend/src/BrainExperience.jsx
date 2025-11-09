@@ -7,6 +7,7 @@ import { Box3, Color, SRGBColorSpace, Vector3 } from 'three';
 import ChatSidebar from './components/ChatSidebar.jsx';
 import CanvasLoader from './components/CanvasLoader.jsx';
 import CameraController from './components/CameraController.jsx';
+import useAgentProcessTrace from './hooks/useAgentProcessTrace.js';
 import { BRAIN_REGIONS, resolveBrainRegionName } from './brainRegions.js';
 
 const initialPrompts = [
@@ -115,16 +116,16 @@ function BrainModel({ highlightRegion }) {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        
+
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach((material) => {
           if (!material) return;
-          
+
           // Store original color if not already stored
           if (material.color && !originalColorsRef.current.has(material.uuid)) {
             originalColorsRef.current.set(material.uuid, material.color.clone());
           }
-          
+
           ['map', 'emissiveMap'].forEach((mapKey) => {
             const texture = material[mapKey];
             if (texture && 'colorSpace' in texture) {
@@ -165,7 +166,7 @@ function BrainModel({ highlightRegion }) {
     if (highlightRegion?.key) {
       const regionConfig = BRAIN_REGIONS[highlightRegion.key];
       const highlightColor = new Color(highlightRegion.color || regionConfig?.color || '#00ff00');
-      
+
       const groupKeys = Array.from(groupMapRef.current.keys());
       const meshKeys = Array.from(meshMapRef.current.keys());
       let matchedGroup = null;
@@ -175,33 +176,33 @@ function BrainModel({ highlightRegion }) {
       if (regionConfig?.groupPatterns) {
         for (const pattern of regionConfig.groupPatterns) {
           const normalizedPattern = pattern.toLowerCase();
-          
+
           // Try matching groups
           for (const groupKey of groupKeys) {
             const normalizedGroupKey = groupKey.toLowerCase().replace(/[\s_-]/g, '');
             const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
-            
-            if (normalizedGroupKey.includes(normalizedPatternClean) || 
-                normalizedPatternClean.includes(normalizedGroupKey)) {
+
+            if (normalizedGroupKey.includes(normalizedPatternClean) ||
+              normalizedPatternClean.includes(normalizedGroupKey)) {
               matchedGroup = groupMapRef.current.get(groupKey);
               console.log(`Matched region "${highlightRegion.key}" to group "${groupKey}" using pattern "${pattern}"`);
               break;
             }
           }
-          
+
           // Try matching meshes by name
           for (const meshKey of meshKeys) {
             const normalizedMeshKey = meshKey.toLowerCase().replace(/[\s_-]/g, '');
             const normalizedPatternClean = normalizedPattern.replace(/[\s_-]/g, '');
-            
-            if (normalizedMeshKey.includes(normalizedPatternClean) || 
-                normalizedPatternClean.includes(normalizedMeshKey)) {
+
+            if (normalizedMeshKey.includes(normalizedPatternClean) ||
+              normalizedPatternClean.includes(normalizedMeshKey)) {
               const mesh = meshMapRef.current.get(meshKey);
               matchedMeshes.push(mesh);
               console.log(`Matched region "${highlightRegion.key}" to mesh "${meshKey}" using pattern "${pattern}"`);
             }
           }
-          
+
           if (matchedGroup || matchedMeshes.length > 0) break;
         }
       }
@@ -209,7 +210,7 @@ function BrainModel({ highlightRegion }) {
       // Fallback: try fuzzy matching on region key
       if (!matchedGroup && matchedMeshes.length === 0) {
         const regionKey = highlightRegion.key.toLowerCase().replace(/[\s_-]/g, '');
-        
+
         // Try groups
         for (const groupKey of groupKeys) {
           const normalizedGroupKey = groupKey.toLowerCase().replace(/[\s_-]/g, '');
@@ -219,7 +220,7 @@ function BrainModel({ highlightRegion }) {
             break;
           }
         }
-        
+
         // Try meshes
         for (const meshKey of meshKeys) {
           const normalizedMeshKey = meshKey.toLowerCase().replace(/[\s_-]/g, '');
@@ -248,7 +249,7 @@ function BrainModel({ highlightRegion }) {
         });
         console.log(`Applied highlight color ${highlightColor.getHexString()} to group for region "${highlightRegion.key}"`);
       }
-      
+
       // Apply highlight to matched meshes
       if (matchedMeshes.length > 0) {
         matchedMeshes.forEach((mesh) => {
@@ -264,7 +265,7 @@ function BrainModel({ highlightRegion }) {
         });
         console.log(`Applied highlight color ${highlightColor.getHexString()} to ${matchedMeshes.length} meshes for region "${highlightRegion.key}"`);
       }
-      
+
       if (!matchedGroup && matchedMeshes.length === 0) {
         console.warn(`No group or mesh found for region: ${highlightRegion.key}`);
         console.log('Available groups:', groupKeys);
@@ -277,8 +278,8 @@ function BrainModel({ highlightRegion }) {
 }
 
 function BrainExperience() {
+  const { steps: agentProcessSteps, startTrace, updateFromServer, markFinalStatus } = useAgentProcessTrace();
   const [messages, setMessages] = useState([]);
-  const [isChatOpen, setIsChatOpen] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [controllerState, dispatch] = useReducer(controllerReducer, initialControllerState);
@@ -496,6 +497,7 @@ function BrainExperience() {
     async (text) => {
       if (isSending) return;
 
+      startTrace();
       const conversation = [...messages, { role: 'user', text }];
       setMessages((previous) => [
         ...previous,
@@ -518,6 +520,9 @@ function BrainExperience() {
         });
 
         const payload = await response.json();
+        if (Array.isArray(payload.agentSteps) && payload.agentSteps.length) {
+          updateFromServer(payload.agentSteps);
+        }
 
         if (!response.ok) {
           throw new Error(payload.error || payload.reply || 'Assistant request failed.');
@@ -584,6 +589,11 @@ function BrainExperience() {
             return updated;
           });
         }
+
+        markFinalStatus('complete', {
+          toolCallCount: toolCalls.length,
+          replyLength: (payload.reply || '').length
+        });
       } catch (error) {
         console.error(error);
         setMessages((previous) => {
@@ -598,12 +608,15 @@ function BrainExperience() {
           }
           return updated;
         });
+        markFinalStatus('error', {
+          message: error instanceof Error ? error.message : 'Assistant connection failed.'
+        });
         setStatusMessage(error instanceof Error ? error.message : 'Assistant connection failed.');
       } finally {
         setIsSending(false);
       }
     },
-    [applyToolCalls, apiBaseUrl, isSending, messages]
+    [applyToolCalls, apiBaseUrl, isSending, markFinalStatus, messages, startTrace, updateFromServer]
   );
 
   return (
@@ -628,16 +641,6 @@ function BrainExperience() {
           <CameraController view={controllerState.view} controlsRef={controlsRef} />
         </Canvas>
 
-        {!isChatOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatOpen(true)}
-            className="pointer-events-auto absolute right-6 top-6 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-400"
-          >
-            Open Chat
-          </button>
-        )}
-
         <div className="pointer-events-none absolute left-8 top-8 max-w-md text-white/80 space-y-3">
           <Link
             to="/"
@@ -654,13 +657,6 @@ function BrainExperience() {
           </div>
         </div>
 
-        {controllerState.annotation ? (
-          <div className="pointer-events-auto absolute left-8 bottom-8 max-w-sm rounded-2xl border border-white/10 bg-slate-900/80 p-4 text-white/80 shadow-xl">
-            <h3 className="text-sm font-semibold text-white">{controllerState.annotation.title}</h3>
-            <p className="mt-2 text-xs leading-relaxed text-white/70">{controllerState.annotation.description}</p>
-          </div>
-        ) : null}
-
         {statusMessage ? (
           <div className="pointer-events-auto absolute left-1/2 top-6 -translate-x-1/2 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-2 text-xs font-medium text-white/80 shadow-xl">
             {statusMessage}
@@ -669,8 +665,6 @@ function BrainExperience() {
       </div>
 
       <ChatSidebar
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen((previous) => !previous)}
         messages={messages}
         onSubmit={handleSendMessage}
         isBusy={isSending}
@@ -678,6 +672,8 @@ function BrainExperience() {
         title="Brain Assistant"
         subtitle="Dedalus Labs link to Gemini for guided exploration."
         placeholder="Ask the assistant about the brain…"
+        processTrace={agentProcessSteps}
+        annotation={controllerState.annotation}
       />
     </div>
   );

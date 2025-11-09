@@ -4,7 +4,7 @@ import SkullPreview from './components/SkullPreview.jsx';
 
 const chapters = [
   {
-    name: 'Cardiac Chapter',
+    name: 'Cardiac Model',
     description: 'Chat with Medverse to explore valves, chambers, and coronary flow in guided heart sessions.',
     href: '/heart',
     accent: 'from-rose-400/80 via-rose-300/60 to-rose-400/30',
@@ -12,7 +12,7 @@ const chapters = [
     slug: 'heart'
   },
   {
-    name: 'Neuro Chapter',
+    name: 'Brain Model',
     description: 'Chat with Medverse to unpack cortical regions, deep nuclei, and vascular pathways of the brain.',
     href: '/brain',
     accent: 'from-indigo-400/80 via-indigo-300/60 to-indigo-400/30',
@@ -20,7 +20,7 @@ const chapters = [
     slug: 'brain'
   },
   {
-    name: 'Skeletal Chapter',
+    name: 'Skeletal Model',
     description: 'Chat with Medverse to learn key skeletal regions and landmark relationships across the body.',
     href: '/skeleton',
     accent: 'from-amber-400/80 via-amber-300/60 to-amber-400/30',
@@ -103,11 +103,11 @@ export default function Home() {
         <section id="chapters" aria-labelledby="chapters-heading" className="space-y-6">
           <Reveal className="flex flex-col gap-2" as="div">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-200/90" id="chapters-heading">
-              Chapters
+              Models
             </p>
-            <h2 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Choose an interactive chapter</h2>
+            <h2 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Choose an interactive model</h2>
             <p className="max-w-2xl text-sm text-slate-100/80">
-              Each chapter pairs an interactive 3D model with stepwise reasoning, clinical context, and quick recall
+              Each model pairs an interactive 3D model with stepwise reasoning, clinical context, and quick recall
               checks—so you can see it, understand it, and remember it.
             </p>
           </Reveal>
