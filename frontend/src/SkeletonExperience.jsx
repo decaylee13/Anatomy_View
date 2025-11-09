@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState
 import { Link } from 'react-router-dom';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
-import { Box3, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Group, SRGBColorSpace, Vector3 } from 'three';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
@@ -79,8 +79,6 @@ function parseToolArguments(args) {
 }
 
 function SkeletonModel() {
-  const groupRef = useRef();
-
   const materialCreators = useLoader(
     MTLLoader,
     SKELETON_SUBTOOLS.map((name) => `/human-skeleton-study/source/archive/${name}.mtl`),
@@ -91,7 +89,7 @@ function SkeletonModel() {
     }
   );
 
-  const parts = useLoader(
+  const rawParts = useLoader(
     OBJLoader,
     SKELETON_SUBTOOLS.map((name) => `/human-skeleton-study/source/archive/${name}.OBJ`),
     (loader) => {
@@ -100,24 +98,33 @@ function SkeletonModel() {
     }
   );
 
-  useEffect(() => {
-    if (!Array.isArray(parts) || parts.length === 0) return;
-    parts.forEach((part, index) => {
+  const skeletonGroup = useMemo(() => {
+    if (!Array.isArray(rawParts) || rawParts.length === 0) return null;
+
+    const group = new Group();
+
+    rawParts.forEach((part, index) => {
       if (!part) return;
+
       const materialCreator = materialCreators?.[index];
-      if (materialCreator) {
+      if (materialCreator?.preload) {
         materialCreator.preload();
       }
-      part.traverse((child) => {
+
+      const clonedPart = part.clone(true);
+      clonedPart.traverse((child) => {
         if (!child.isMesh) return;
+
         if (materialCreator && child.material?.name) {
           const replacement = materialCreator.create(child.material.name);
           if (replacement) {
             child.material = replacement;
           }
         }
+
         child.castShadow = true;
         child.receiveShadow = true;
+
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach((material) => {
           if (!material) return;
@@ -130,37 +137,40 @@ function SkeletonModel() {
           material.needsUpdate = true;
         });
       });
+
+      group.add(clonedPart);
     });
-  }, [materialCreators, parts]);
 
-  useEffect(() => {
-    const group = groupRef.current;
-    if (!group || !Array.isArray(parts) || parts.length === 0) return;
+    return group;
+  }, [materialCreators, rawParts]);
 
-    group.rotation.set(0, 0, 0);
-    group.position.set(0, 0, 0);
-    group.scale.set(1, 1, 1);
+  const { scale, position } = useMemo(() => {
+    if (!skeletonGroup) {
+      return { scale: 1, position: new Vector3(0, 0, 0) };
+    }
 
-    const boundingBox = new Box3().setFromObject(group);
+    const boundingBox = new Box3().setFromObject(skeletonGroup);
     const size = new Vector3();
     boundingBox.getSize(size);
 
     const desiredHeight = 3.6;
-    const scale = size.y > 0 ? desiredHeight / size.y : 1;
-    group.scale.setScalar(scale);
+    const computedScale = size.y > 0 ? desiredHeight / size.y : 1;
 
-    const scaledBox = new Box3().setFromObject(group);
     const center = new Vector3();
-    scaledBox.getCenter(center);
-    group.position.set(-center.x, -center.y, -center.z);
-  }, [parts]);
+    boundingBox.getCenter(center);
+    center.multiplyScalar(-computedScale);
+
+    return { scale: computedScale, position: center };
+  }, [skeletonGroup]);
+
+  if (!skeletonGroup) return null;
 
   return (
-    <group ref={groupRef}>
-      {Array.isArray(parts)
-        ? parts.map((part, index) => <primitive key={SKELETON_SUBTOOLS[index]} object={part} />)
-        : null}
-    </group>
+    <primitive
+      object={skeletonGroup}
+      scale={scale}
+      position={[position.x, position.y, position.z]}
+    />
   );
 }
 
