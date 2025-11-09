@@ -259,6 +259,12 @@ def _build_contents(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return contents
 
 
+@app.get('/status')
+def status_check() -> Any:
+    """Simple 200 OK health check for Render"""
+    return '', 200
+
+
 @app.get('/api/health')
 def health() -> Any:
     return jsonify(status='ok', model=GEMINI_MODEL, llm_configured=bool(GEMINI_API_KEY))
